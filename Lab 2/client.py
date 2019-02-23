@@ -62,7 +62,7 @@ class UDPClient():
       print("Received reply from server: ", self.data)
       print("Reply received from: ", addr)
       self.data = data
-    if (not self.data_received):
+    elif(not self.data_received):
       print("No Reply from Server, Try Again!")
       self.data = "No reply received!"
 
