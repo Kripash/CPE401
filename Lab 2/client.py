@@ -33,6 +33,7 @@ class UDPClient():
     self.sock.bind((my_ip, udp_port))
     self.data_received = False
     self.data = "default message"
+    # self.debug()
     print("Client Sucessfully Initialized!")
 
   def debug(self):
@@ -40,6 +41,9 @@ class UDPClient():
     print("Server IP: ", self.server_ip)
     print("My IP: ", self.my_ip)
     print("UDP Port: ", self.udp_port)
+    print("Message: ", self.message)
+    print("Data Received: ", self.data_received)
+    print("Data: ", self.data)
 
   def sendMessageToServer(self):
     self.message = raw_input("Message to send to server: ")
@@ -60,10 +64,12 @@ class UDPClient():
       self.data = data
     if (not self.data_received):
       print("No Reply from Server, Try Again!")
+      self.data = "No reply received!"
 
   def actAsThread(self):
     while True:
       self.sendMessageToServer()
+      # self.debug()
 
 
 def main():
