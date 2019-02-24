@@ -1,8 +1,8 @@
 import sys
 import socket
+import uuid
 import SocketServer
 
-# from socket import *
 
 USER_ID = sys.argv[1]
 SERVER_IP = sys.argv[2]
@@ -10,6 +10,7 @@ CLIENT_IP = "0.0.0.0"
 UDP_PORT = int(sys.argv[3])
 hostname = socket.gethostname()
 IPAddr = socket.gethostbyname(hostname)
+
 
 
 # sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
@@ -36,6 +37,8 @@ class UDPClient():
     #self.sock.bind((self.my_ip, self.udp_port))
     self.data_received = False
     self.data = "default message"
+    self.mac = hex(uuid.getnode())
+    self.passphrase = "default passphrase is too long for sending messages"
     # self.debug()
     print "Client Sucessfully Initialized!"
 
@@ -51,13 +54,25 @@ class UDPClient():
 
 
   def sendMessageToServer(self):
-    self.message = raw_input("Message to send to server: ")
+    #self.message = raw_input("Message to send to server: ")
     self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     self.sock.bind((self.my_ip, self.udp_port))
+    self.sendMessage()
+    if(not self.data_received):
+      print "No Reply from Server, Trying Again!"
+      self.sendMessage()
+      if (not self.data_received):
+        print "No Reply from Server, Trying Again!"
+        self.sendMessage()
+        if(not self.data_received):
+          print "No Reply from Server, Server Cannot be Contacted!"
+          #record in error.log
+    self.sock.close()
+
+  def sendMessage(self):
     self.sock.sendto(self.message, (self.server_ip, self.udp_port))
     self.data_received = False
     self.waitForAck()
-    self.sock.close()
 
 
   def waitForAck(self):
@@ -72,7 +87,6 @@ class UDPClient():
       print "Received reply from server: ", self.data
       print "Reply received from: ", addr
     elif(not self.data_received):
-      print "No Reply from Server, Try Again!"
       self.data = "No reply received!"
 
 
@@ -92,6 +106,10 @@ class UDPClient():
 
 
   def actAsThread(self):
+    self.passphrase = raw_input("Please input 1 time passphrase for (32 alphanumeric chara max): ")
+    while(len(self.passphrase) > 32):
+      self.passphrase = raw_input("Passphase Too Long! Please input 1 time passphrase for (32 chars and numbers max): ")
+
     while True:
       self.userSelection()
       if(self.user_selection == 1):
@@ -111,6 +129,7 @@ class UDPClient():
 
   def registerDevice(self):
     print "in register device"
+    self.message = "REGISTER\t" + str(self.user_id) + "\t" + self.passphrase + "\t" + str(self.mac) + "\t" + self.my_ip + "\t" + str(self.udp_port)
     self.sendMessageToServer()
 
   def deregisterDevice(self):
@@ -124,7 +143,7 @@ class UDPClient():
 
 
 def main():
-  UDP_client = UDPClient(sys.argv[1], sys.argv[2], "0.0.0.0", int(sys.argv[3]))
+  UDP_client = UDPClient(sys.argv[1], sys.argv[2], "192.168.1.10", int(sys.argv[3]))
   UDP_client.actAsThread()
 
 

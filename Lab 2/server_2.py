@@ -1,6 +1,7 @@
 import sys
 import socket
 import SocketServer
+from devices import Devices
 
 hostname = socket.gethostname()
 IPAddr = socket.gethostbyname(hostname)
@@ -11,9 +12,7 @@ class UDPServer():
   def __init__(self, my_ip, udp_port):
     self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     self.sock.bind((my_ip, udp_port))
-    self.messages = []
-    self.user_ids = []
-    self.clients = []
+    self.devices = []
 
   def actAsThread(self):
     while True:
