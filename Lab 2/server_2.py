@@ -2,6 +2,8 @@ import sys
 import socket
 import SocketServer
 
+hostname = socket.gethostname()
+IPAddr = socket.gethostbyname(hostname)
 server_port = int(sys.argv[1])
 
 
