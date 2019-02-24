@@ -11,9 +11,10 @@ server_port = int(sys.argv[1])
 class UCHandler(SocketServer.BaseRequestHandler):
   def handle(self):
     remote = self.client_address
-    data, client = self.request
-    print(data)
-    client.sendto("Why did you say " + data + " ?", remote)
+    data, skt = self.request
+    print("Received Message: ", data)
+    print("Received from: ", remote)
+    skt.sendto("Why did you say " + data + " ?", remote)
 
 def main():
   UDP_server = ("0.0.0.0", server_port)
