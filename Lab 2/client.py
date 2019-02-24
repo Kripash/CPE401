@@ -1,6 +1,8 @@
 import sys
 import socket
 import uuid
+import time
+import hashlib
 import SocketServer
 
 
@@ -86,6 +88,7 @@ class UDPClient():
       self.data = data
       print "Received reply from server: ", self.data
       print "Reply received from: ", addr
+      self.handleAck(data)
     elif(not self.data_received):
       self.data = "No reply received!"
 
@@ -109,9 +112,9 @@ class UDPClient():
 
 
   def actAsThread(self):
-    self.passphrase = raw_input("Please input 1 time passphrase for (32 alphanumeric chara max): ")
+    self.passphrase = raw_input("Please input 1 time passphrase (32 alphanumeric chars max): ")
     while(len(self.passphrase) > 32):
-      self.passphrase = raw_input("Passphase Too Long! Please input 1 time passphrase for (32 chars and numbers max): ")
+      self.passphrase = raw_input("Passphase Too Long! Please input 1 time passphrase (32 alphanumeric chars max): ")
 
     while True:
       self.userSelection()
@@ -133,6 +136,13 @@ class UDPClient():
       else:
         print "Invalid Choice!"
 
+  def handleAck(self, data):
+    message = []
+    message = (data.split("\t"))
+    #if(message[2] == "00"):
+    print "Ack Code: ", message[1]
+    if(hashlib.sha256(self.message).hexdigest() == message [4]):
+      print "Message Hashes Match!"
 
   def registerDevice(self):
     self.message = "REGISTER\t" + str(self.user_id) + "\t" + self.passphrase + "\t" + str(self.mac) + "\t" + self.my_ip + "\t" + str(self.udp_port)
