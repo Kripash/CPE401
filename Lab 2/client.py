@@ -97,12 +97,14 @@ class UDPClient():
     print "2. DeRegister Device with Server"
     print "3. Login Device to System"
     print "4. Logoff Device from System"
-    print "5. Exit"
+    print "5. Logoff Device from System"
+    print "6. Logoff Device from System"
+    print "7. Exit"
 
-    self.user_selection = int(raw_input("Please Select an Action (1 - 5): "))
-    while((self.user_selection <= 0) or (self.user_selection >= 6)):
+    self.user_selection = int(raw_input("Please Select an Action (1 - 7): "))
+    while((self.user_selection <= 0) or (self.user_selection >= 8)):
       print "Error: Menu Option Invalid! "
-      self.user_selection = int(raw_input("Please Select an Action (1 - 5): "))
+      self.user_selection = int(raw_input("Please Select an Action (1 - 7): "))
 
 
   def actAsThread(self):
@@ -121,6 +123,10 @@ class UDPClient():
       elif(self.user_selection == 4):
         self.logOffFromSystem()
       elif (self.user_selection == 5):
+        self.dataToServer()
+      elif (self.user_selection == 6):
+        self.queryServer()
+      elif (self.user_selection == 7):
         print "Exiting Program!"
         sys.exit(0)
       else:
@@ -128,18 +134,26 @@ class UDPClient():
 
 
   def registerDevice(self):
-    print "in register device"
     self.message = "REGISTER\t" + str(self.user_id) + "\t" + self.passphrase + "\t" + str(self.mac) + "\t" + self.my_ip + "\t" + str(self.udp_port)
     self.sendMessageToServer()
 
   def deregisterDevice(self):
-    print "in deregister device"
+    self.message = "DEREGISTER\t" + str(self.user_id) + "\t" + self.passphrase + "\t" + str(self.mac) + "\t" + self.my_ip + "\t" + str(self.udp_port)
+    self.sendMessageToServer()
 
   def loginToSystem(self):
-    print "in login to system"
+    self.message = "LOGIN\t" + str(self.user_id) + "\t" + self.passphrase + "\t" + self.my_ip + "\t" + str(self.udp_port)
+    self.sendMessageToServer()
 
   def logOffFromSystem(self):
-    print "in log off from system"
+    self.message = "LOGOFF\t" + str(self.user_id)
+    self.sendMessageToServer()
+
+  def dataToServer(self):
+    print "in dataToServer"
+
+  def queryServer(self):
+    print "in query Server"
 
 
 def main():
