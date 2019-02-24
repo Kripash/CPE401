@@ -114,7 +114,7 @@ class UDPClient():
   def actAsThread(self):
     self.passphrase = raw_input("Please input 1 time passphrase (32 alphanumeric chars max): ")
     while(len(self.passphrase) > 32):
-      self.passphrase = raw_input("Passphase Too Long! Please input 1 time passphrase (32 alphanumeric chars max): ")
+      self.passphrase = raw_input("Passphrase Too Long! Please input 1 time passphrase (32 alphanumeric chars max): ")
 
     while True:
       self.userSelection()

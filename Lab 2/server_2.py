@@ -31,8 +31,8 @@ class UDPServer():
     if (message[0] == "REGISTER"):
       code = self.registerDevice(message, data)
       print "Number of Registered Devices: ", len(self.devices)
-    if (code != "-1"):
-      self.ackClient(code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr)
+      if (code != "-1"):
+        self.ackClient(code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr)
     self.devices[0].debug()
 
   def registerDevice(self, message, data):
