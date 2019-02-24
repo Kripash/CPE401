@@ -98,7 +98,8 @@ class UDPClient():
     print "3. Login Device to System"
     print "4. Logoff Device from System"
     print "5. Logoff Device from System"
-    print "6. Logoff Device from System"
+    print "6. Logoff Device from Sy" \
+          "stem"
     print "7. Exit"
 
     self.user_selection = int(raw_input("Please Select an Action (1 - 7): "))
