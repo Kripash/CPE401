@@ -94,7 +94,7 @@ class UDPClient():
 
 
   def userSelection(self):
-    print "~~~~~~~~~~~~~~~~~~~"
+    print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     print "CLI Menu for Client"
     print "1. Register Device with Server"
     print "2. DeRegister Device with Server"
