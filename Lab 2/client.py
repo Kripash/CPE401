@@ -113,8 +113,9 @@ class UDPClient():
 
   def actAsThread(self):
     self.passphrase = raw_input("Please input 1 time passphrase (32 alphanumeric chars max): ")
-    while(len(self.passphrase) > 32):
-      self.passphrase = raw_input("Passphrase Too Long! Please input 1 time passphrase (32 alphanumeric chars max): ")
+    while(len(self.passphrase) > 32 or len(self.passphrase) <= 0):
+      self.passphrase = raw_input("Invalid amount of characters in password! Please input 1 time passphrase (32 alphanumeric chars max): ")
+
 
     while True:
       self.userSelection()
@@ -168,6 +169,9 @@ class UDPClient():
 
 
 def main():
+  if(len(sys.argv[1]) > 32):
+    print "ERROR: USER ID Too Long, should be at most 32 alphanumeric characters."
+    sys.exit(0)
   UDP_client = UDPClient(sys.argv[1], sys.argv[2], "192.168.1.10", int(sys.argv[3]))
   UDP_client.actAsThread()
 
