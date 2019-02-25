@@ -18,10 +18,12 @@ class UDPServer():
 
   def actAsThread(self):
     while True:
+      print "\n~~~~~~~~~~~~~~~~~~~~"
       data, addr = self.sock.recvfrom(1024)
       print "Received from: ", addr
       print "Received Message: ", data
       self.parse(data, addr)
+      print "~~~~~~~~~~~~~~~~~~~~"
       # self.sock.sendto("Why did you say " + data + " ?", addr)
 
   def parse(self, data, addr):

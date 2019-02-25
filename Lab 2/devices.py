@@ -14,8 +14,11 @@ class Device():
     self.messages.append(message)
 
   def debug(self):
+    print "~~~~~~~~~~~~~~~~~~~~"
     print "Device ID: ", self.id
     print "Passphrase: ", self.passphrase
     print "Device MAC: ", self.mac
     print "Device IP: ", self.ip
     print "Device PORT: ", self.port
+    for x in self.messages:
+      print "Message: " , x
