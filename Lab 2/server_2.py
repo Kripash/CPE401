@@ -44,6 +44,10 @@ class UDPServer():
             mac = x.mac
             ip = x.ip
       self.ackClient("DEREGISTER", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, mac, ip)
+    elif(message[0] == "LOGIN"):
+      code = self.loginDevice(message)
+      self.ackClient("LOGIN", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, message[3], message[4])
+
     print "Number of Registered Devices: ", len(self.devices)
     for x in self.devices:
       x.debug()
@@ -83,10 +87,18 @@ class UDPServer():
 
     return "21"
 
+  def loginDevice(self, message):
+    for x in self.devices:
+      if(x.id == message[1]):
+        if(x.passphrase == message[2]):
+          x.login = True
+          return "70"
+    return "31"
+
+
   def ackClient(self, command, code, device_id, time, hashed_message, addr, mac, ip):
     if(command == "REGISTER"):
       message = "ACK\t" + code + "\t" + device_id + "\t" + time + "\t" + hashed_message
-      print "sending message"
       self.sock.sendto(message, addr)
     elif(command == "DEREGISTER"):
       if(code == "30"):
@@ -94,7 +106,9 @@ class UDPServer():
       else:
         message = "ACK\t" + code + "\t" + device_id + "\t" + time + "\t" + hashed_message
       self.sock.sendto(message, addr)
-
+    elif(command == "LOGIN"):
+      message = message = "ACK\t" + code + "\t" + device_id + "\t" + time + "\t" + hashed_message
+      self.sock.sendto(message, addr)
 
 def main():
   UDP_Server = UDPServer("0.0.0.0", server_port)

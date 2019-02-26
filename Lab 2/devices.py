@@ -9,6 +9,7 @@ class Device():
     self.ip = device_ip
     self.port = device_port
     self.messages = []
+    self.login = False
 
   def addMessage(self, message):
     self.messages.append(message)
@@ -20,5 +21,6 @@ class Device():
     print "Device MAC: ", self.mac
     print "Device IP: ", self.ip
     print "Device PORT: ", self.port
+    print "Device Login: ", self.login
     for x in self.messages:
       print "Message: " , x

@@ -100,8 +100,8 @@ class UDPClient():
     print "2. DeRegister Device with Server"
     print "3. Login Device to System"
     print "4. Logoff Device from System"
-    print "5. Logoff Device from System"
-    print "6. Logoff Device from Sy" \
+    print "5. Data To Server"
+    print "6. Query To Server" \
           "stem"
     print "7. Exit"
 
