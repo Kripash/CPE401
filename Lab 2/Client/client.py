@@ -11,10 +11,31 @@ import time
 #grab host name to get ip of device
 USER_ID = sys.argv[1]
 SERVER_IP = sys.argv[2]
-CLIENT_IP = "0.0.0.0"
 UDP_PORT = int(sys.argv[3])
 hostname = socket.gethostname()
 
+
+#Function: getClientIP
+#Gets the IP of the client, none of the described methods in the slides worked, and returned localhost/127.0.0.1
+#So I looked at some resources to get the IP. If a socket cannot connect to a random IP, it will return the Ip as local host
+#because then that means, no other IP exists, otherwise it will return an IP registered on the host.
+#Part of this code was retrieved and modified from https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
+#from user Jamieson Becker with the license:
+#MIT/CC2-BY-SA
+def getClientIP():
+  ip_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+  try:
+    ip_sock.connect(("1.1.1.1", 10000))
+    CLIENT_IP = ip_sock.getsockname()[0]
+  except:
+    CLIENT_IP = "127.0.0.1"
+
+  ip_sock.close()
+  return CLIENT_IP
+
+
+
+#Client object to handle the client
 class UDPClient():
   #constructor for the object, intializes the lists, server ip, ports, binds the sockets and informs the client of the
   #retrieved ip using hostname.
@@ -239,11 +260,11 @@ def main():
   if(len(sys.argv[1]) > 32):
     print "ERROR: USER ID Too Long, should be at most 32 alphanumeric characters."
     sys.exit(0)
-  #Create the udp client object and call the "main thread" function
-  UDP_client = UDPClient(sys.argv[1], sys.argv[2], socket.gethostbyname(hostname), int(sys.argv[3]))
+  #Call the getClientIP function to get the IP address of the Client
+  CLIENT_IP = getClientIP()
+  UDP_client = UDPClient(sys.argv[1], sys.argv[2], CLIENT_IP, int(sys.argv[3]))
   UDP_client.actAsThread()
 
 
 if __name__ == '__main__':
   main()
-

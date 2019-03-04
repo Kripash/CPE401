@@ -101,6 +101,7 @@ class UDPServer():
                      "null")
       else:
         self.recordError("Malformed Message!")
+    #The function prints the number of registered devices and then prints out the data for each device from the server.
     print "Number of Registered Devices: ", len(self.devices)
     for x in self.devices:
       x.debug()
