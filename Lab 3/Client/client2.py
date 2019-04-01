@@ -123,10 +123,12 @@ class TCPClient():
         self.sendMessage()
         if (not self.data_received):
           print "No Reply from Server, Server Cannot be Contacted!"
+          io_lock.acquire()
           file = open('Error.log', 'a+')
           file.write(self.message + "\n")
           file.write("No Reply from Server, Server Cannot be Contacted!\n")
           file.close()
+          io_lock.release()
 
 
   # Function: sendMessage
@@ -168,10 +170,11 @@ class TCPClient():
     message = []
     message = (data.split("\t"))
     if ((not (hashlib.sha256(self.message).hexdigest() == message[4])) and message[0] == "ACK"):
+      io_lock.acquire()
       file = open('Error.log', 'a+')
       file.write("Message hash does not match original message hash: " + data + "\n")
-
       file.close()
+      io_lock.release()
 
     if message[1] == "70":
       self.logged_in = True
@@ -260,6 +263,13 @@ class TCPClient():
       message = "DATA\t" + "01\t" + str(self.user_id) + "\t" + str(len(data_message)) + "\t" + data_message
       self.recordActivity("Sent     " + message)
       self.udp_read_sock.sendto(message, addr)
+    elif(message[0] == "STATUS"):
+      message = "ACK\t" + "40\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + hashlib.sha256(data).hexdigest()
+      self.record("Sent:     " + message)
+      self.udp_read_sock.sendto(message, addr)
+    elif(message[0] == "DATA"):
+      message = "ACK\t" + "50\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + hashlib.sha256(data).hexdigest()
+      self.record("Sent:     " + message)
 
   def writeUDPSocket(self, null):
     while True:
@@ -285,11 +295,12 @@ class TCPClient():
         return 0
       if(self.logged_in):
         thread_lock.acquire()
+        print "Heart beat thread"
         heart_beat = "This is my Heart Beat!"
         message = "STATUS\t" + "02\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + str(len(heart_beat)) + "\t" + heart_beat
         for x in self.list_of_client_addresses:
           self.udp_read_sock.sendto(message, x[1])
-          self.recordActivity("HeartBeat Sent     " + message)
+          self.recordActivity("HeartBeat Sent:     " + message)
         thread_lock.release()
 
 
@@ -406,9 +417,11 @@ class TCPClient():
   #Function: recordActivity
   #open the Activity.log file, record the activity and close the file.
   def recordActivity(self, activity):
+    io_lock.acquire()
     file = open('Activity.log', 'a+')
     file.write(activity + " \n")
     file.close()
+    io_lock.release()
 
 
 #Create the object and call the main thread function of the object
