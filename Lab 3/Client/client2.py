@@ -20,6 +20,7 @@ hostname = socket.gethostname()
 
 data_lock = threading.Lock()
 thread_lock = threading.Lock()
+io_lock = threading.Lock()
 
 
 #Function: getClientIP
@@ -81,7 +82,7 @@ class TCPClient():
     self.data_received = False
     self.data = "default message"
     self.mac = hex(uuid.getnode())
-    file = open('error.log', 'a+')
+    file = open('Error.log', 'a+')
     file.close()
     file = open('Activity.log', 'a+')
     file.close()
@@ -159,9 +160,10 @@ class TCPClient():
   def handleAck(self, data):
     message = []
     message = (data.split("\t"))
-    if (not (hashlib.sha256(self.message).hexdigest() == message[4])):
+    if ((not (hashlib.sha256(self.message).hexdigest() == message[4])) and message[0] == "ACK"):
       file = open('Error.log', 'a+')
-      file.write("Message hash does not match original message hash!\n")
+      file.write("Message hash does not match original message hash: " + data + "\n")
+
       file.close()
 
     if message[1] == "70":
@@ -178,7 +180,6 @@ class TCPClient():
           self.list_of_client_addresses[index] = client_addr
           found = True
         elif (x[0] == client_addr[0] and x[1] == client_addr[1]):
-          print "Device Already Queried!"
           found = True
 
       if found == False:
@@ -239,7 +240,9 @@ class TCPClient():
         except:
           data_received = False
         if data_received == True:
+          io_lock.acquire()
           print "UDP Data: ", self.udp_data
+          io_lock.release()
           self.udp_received.append((self.udp_data, self.udp_addr))
           self.recordActivity(self.udp_data)
           self.ackUDP(self.udp_data, self.udp_addr)
@@ -284,6 +287,7 @@ class TCPClient():
     # Function: userSelection
     # The Usuer selection menu that allows the user to interact with client for client functions
   def userSelection(self):
+    io_lock.acquire()
     print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     print "CLI Menu for Client"
     print "1. Register Device with Server"
@@ -300,7 +304,7 @@ class TCPClient():
       print "Error: Menu Option Invalid! "
       self.user_selection = int(raw_input("Please Select an Action (1 - 7): "))
     print " "
-
+    io_lock.release()
 
   #Function: registerDevice
   #Creates the string message to register the device and calls sendMessageToServer to send the message to the server.
