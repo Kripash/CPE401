@@ -57,6 +57,7 @@ class TCPClient():
     self.logged_in = False
     self.write_thread = None
     self.read_thread = None
+    self.heart_thread = None
     self.kill_threads = False
 
     self.udp_read_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -103,6 +104,12 @@ class TCPClient():
     except Exception, errtxt:
       print "Could not start client writeUDPSocket thread!"
 
+    try:
+      self.heart_thread = threading.Thread(target=self.heartBeat, args=(None,))
+      self.heart_thread.start()
+    except Exception, errtxt:
+      print "Could not start heart beat thread!"
+
     # Function: sendMessageToServer
     # Send a message to server and wait for response, if there is no response within 3 timeouts, then report the
     # error and log it that the server could not be contacted.
@@ -125,7 +132,7 @@ class TCPClient():
   # Function: sendMessage
   # record the activity of sending a message and then wait for the Ack.
   def sendMessage(self):
-    self.recordActivity(self.message)
+    self.recordActivity("Sent:     " + self.message)
     try :
       self.write_sock.send(self.message)
     except Exception, errtxt:
@@ -145,7 +152,7 @@ class TCPClient():
     except socket.timeout:
       self.data_received = False
     if self.data_received:
-      self.recordActivity(data)
+      self.recordActivity("Received:     " + data)
       self.data = data
       print "Received reply from server: ", self.data
       # print "Reply received from: ", addr
@@ -240,11 +247,9 @@ class TCPClient():
         except:
           data_received = False
         if data_received == True:
-          io_lock.acquire()
-          print "UDP Data: ", self.udp_data
-          io_lock.release()
+          #print "UDP Data: ", self.udp_data
           self.udp_received.append((self.udp_data, self.udp_addr))
-          self.recordActivity(self.udp_data)
+          self.recordActivity("Received     " + self.udp_data)
           self.ackUDP(self.udp_data, self.udp_addr)
         thread_lock.release()
 
@@ -253,7 +258,7 @@ class TCPClient():
     data_message = "Message Received!"
     if(message[0] == "QUERY" and message[1] == "01"):
       message = "DATA\t" + "01\t" + str(self.user_id) + "\t" + str(len(data_message)) + "\t" + data_message
-      self.recordActivity(message)
+      self.recordActivity("Sent     " + message)
       self.udp_read_sock.sendto(message, addr)
 
   def writeUDPSocket(self, null):
@@ -268,26 +273,29 @@ class TCPClient():
           if x[0] == device_id:
             message = "QUERY\t" + "01\t" + str(device_id) + "\t" + str(time.time())
             self.udp_read_sock.sendto(message, x[1])
-            self.recordActivity(message)
+            self.recordActivity("Sent     " + message)
         thread_lock.release()
 
   def heartBeat(self, null):
     while True:
-      time.sleep(300)
+      if(self.kill_threads == True):
+        return 0
+      time.sleep(5)
+      if(self.kill_threads == True):
+        return 0
       if(self.logged_in):
         thread_lock.acquire()
-        print "Heart beating"
         heart_beat = "This is my Heart Beat!"
         message = "STATUS\t" + "02\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + str(len(heart_beat)) + "\t" + heart_beat
         for x in self.list_of_client_addresses:
           self.udp_read_sock.sendto(message, x[1])
+          self.recordActivity("HeartBeat Sent     " + message)
         thread_lock.release()
 
 
     # Function: userSelection
     # The Usuer selection menu that allows the user to interact with client for client functions
   def userSelection(self):
-    io_lock.acquire()
     print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     print "CLI Menu for Client"
     print "1. Register Device with Server"
@@ -304,7 +312,6 @@ class TCPClient():
       print "Error: Menu Option Invalid! "
       self.user_selection = int(raw_input("Please Select an Action (1 - 7): "))
     print " "
-    io_lock.release()
 
   #Function: registerDevice
   #Creates the string message to register the device and calls sendMessageToServer to send the message to the server.
@@ -367,12 +374,12 @@ class TCPClient():
   #since none were given to us and i made up my own. If the query code is 0, the function will randomly create a
   #binary string from 1 - 100 and send it to the server and record the activity and wait for the ack.
   def dataToServer(self, data, message):
-    self.recordActivity(data)
+    self.recordActivity("Received     " + data)
     if(message[1] == "01"):
       data = bin(random.randint(1, 101))[2:]
       length = len(str(data))
       self.message = "DATA\t" + "01\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + str(length) + "\t" + str(data)
-      self.recordActivity(self.message)
+      self.recordActivity("Sent     " + self.message)
       self.sendMessageToServer()
       print "Please wait for device to return to user menu (10-15 seconds)"
       self.waitForAck()
