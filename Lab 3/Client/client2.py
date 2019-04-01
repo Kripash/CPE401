@@ -18,7 +18,8 @@ SERVER_IP = sys.argv[2]
 UDP_PORT = int(sys.argv[3])
 hostname = socket.gethostname()
 
-screenlock = threading.Semaphore(value = 1)
+data_lock = threading.Lock()
+thread_lock = threading.Lock()
 
 
 #Function: getClientIP
@@ -49,8 +50,16 @@ class TCPClient():
     self.user_id = user_id
     self.server_ip = server_ip
     self.list_of_client_addresses = []
+    self.udp_received = []
+    self.device_query = []
 
-    self.udp_read_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    self.logged_in = False
+    self.write_thread = None
+    self.read_thread = None
+    self.kill_threads = False
+
+    self.udp_read_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    self.udp_write_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     self.write_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -65,7 +74,7 @@ class TCPClient():
     self.my_ip = my_ip
     self.tcp_port = int(tcp_port)
     self.TCP_server = (server_ip, tcp_port)
-    print self.TCP_server
+
     self.message = "default message"
     self.data_received = False
     self.data = "default message"
@@ -81,10 +90,16 @@ class TCPClient():
 
   def setupThread(self):
     try:
-      self.thread = threading.Thread(target = self.readSocket,args = (self.data, ))
-      self.thread.start()
+      self.read_thread = threading.Thread(target=self.readUDPSocket, args=(None,))
+      self.read_thread.start()
     except Exception, errtxt:
-      print "Could not start new thread"
+      print "Could not start client readUDPSocket thread!"
+
+    try:
+      self.write_thread = threading.Thread(target=self.writeUDPSocket, args=(None,))
+      self.write_thread.start()
+    except Exception, errtxt:
+      print "Could not start client writeUDPSocket thread!"
 
     # Function: sendMessageToServer
     # Send a message to server and wait for response, if there is no response within 3 timeouts, then report the
@@ -108,8 +123,6 @@ class TCPClient():
   # Function: sendMessage
   # record the activity of sending a message and then wait for the Ack.
   def sendMessage(self):
-    #self.write_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #self.write_sock.connect((self.TCP_server))
     self.recordActivity(self.message)
     try :
       self.write_sock.send(self.message)
@@ -150,6 +163,13 @@ class TCPClient():
       file.write("Message hash does not match original message hash!\n")
       file.close()
 
+    data_lock.acquire()
+    if message[1] == "70":
+      self.logged_in = True
+
+    if message[1] == "80" or message[1] == "32":
+      self.logged_in = False
+
     if(message[0] == "DATA" and message[1] == "01"):
       client_addr = (message[5], (message[6], int(message[7])))
       found = False
@@ -164,6 +184,7 @@ class TCPClient():
       if found == False:
         self.list_of_client_addresses.append(client_addr)
 
+    data_lock.release()
 
   # Function: actAsThread
   # Acts as main thread by asking the user for the passphrase for client and then calls a function
@@ -186,39 +207,81 @@ class TCPClient():
         self.logOffFromSystem()
       elif (self.user_selection == 5):
         device_id = raw_input("Input Device ID you would like to Query to Server: ")
+        while(device_id == self.user_id):
+          device_id = raw_input("Invalid!Input Device ID (that is not yours) you would like to Query to Server: ")
         self.queryServer(device_id, "01")
       elif (self.user_selection == 6):
-        print "Query Client"
+        query_id = raw_input("Input Device ID you would like to Query to: ")
+        while (query_id == self.user_id):
+          query_id = raw_input("Input Device ID (that is not yours) you would like to Query to: ")
+        self.device_query.append(query_id)
       elif (self.user_selection == 7):
-        threads_exit = True
         print "Exiting Program!"
+        self.logged_in = False
+        self.kill_threads = True
         self.udp_read_sock.close()
+        self.udp_write_sock.close()
         self.write_sock.close()
         sys.exit(0)
       else:
         print "Invalid Choice!"
 
-  def readSocket(self, c):
-    return 0
-    #while (threads_exit == False):
-      #self.read_sock.listen(5)
-      #sock, addr = self.read_sock.accept()
-      #data = sock.recv(1024)
-      #screenlock.acquire()
-      #print " "
-      #print "~~~~~~~~~~~~~~~~~~~"
-      #print "Received from: ", addr
-      #print "Received Message: ", data
-      #print "~~~~~~~~~~~~~~~~~~~~"
-      #print " "
-      #screenlock.release()
+  def readUDPSocket(self, null):
+    while True:
+      if(self.kill_threads == True):
+        return 0
+      while self.logged_in:
+        thread_lock.acquire()
+        print self.udp_read_sock.getsockname()
+        data, addr = self.udp_read_sock.recvfrom(1024)
+        print data
+        self.udp_received.append(data, addr)
+        self.recordActivity(data)
+        self.ackUDP(data, addr)
+        thread_lock.release()
 
-    #sys.exit(0)
+  def ackUDP(self, data, addr):
+    message = (data.split("\t"))
+    data_message = "Message Received!"
+    if(message[0] == "QUERY" and message[1] == "01"):
+      message = "DATA\t" + "01\t" + str(self.user_id) + "\t" + str(len(data_message)) + "\t" + data_message
+      self.recordActivity(message)
+      self.udp_read_sock.sendto(message, addr)
+    else:
+      file = open('Error.log', 'a+')
+      file.write("Invalid Query\n")
+      file.close()
+
+  def writeUDPSocket(self, null):
+    while True:
+      if(self.kill_threads == True):
+        return 0
+      if(len(self.device_query) > 0):
+        thread_lock.acquire()
+        device_id = self.device_query[0]
+        self.device_query.pop(0)
+        for x in self.list_of_client_addresses:
+          if x[1] == device_id:
+            message = "QUERY\t" + "01\t" + str(device_id) + "\t" + str(time.time())
+            self.udp_read_sock.sendto(message, x[2])
+            self.recordActivity(message)
+        thread_lock.release()
+
+  def heartBeat(self, null):
+    while True:
+      time.sleep(300)
+      if(self.logged_in):
+        thread_lock.acquire()
+        heart_beat = "This is my Heart Beat!"
+        message = "STATUS\t" + "02\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + str(len(heart_beat)) + "\t" + heart_beat
+        for x in self.list_of_client_addresses:
+          self.udp_read_sock.sendto(message, x[2])
+        thread_lock.release()
+
 
     # Function: userSelection
     # The Usuer selection menu that allows the user to interact with client for client functions
   def userSelection(self):
-    screenlock.acquire()
     print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     print "CLI Menu for Client"
     print "1. Register Device with Server"
@@ -228,7 +291,6 @@ class TCPClient():
     print "5. Query Server"
     print "6. Query Another Client/Device"
     print "7. Exit"
-    screenlock.release()
 
     # select an action 1-5 for client action
     self.user_selection = int(raw_input("Please Select an Action (1 - 7): "))
@@ -236,7 +298,6 @@ class TCPClient():
       print "Error: Menu Option Invalid! "
       self.user_selection = int(raw_input("Please Select an Action (1 - 7): "))
     print " "
-
 
 
   #Function: registerDevice
@@ -256,10 +317,12 @@ class TCPClient():
   #to send the message to the server. If the response comes back as a sucessful login, the function calls
   #for waitforQuery to wait for the query from the server.
   def loginToSystem(self):
-    try:
-      self.udp_read_sock.bind(('', 0))
-    except:
-      print "Device Already Logged In!"
+    if(self.logged_in == False):
+      try:
+        #self.udp_read_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udp_read_sock.bind(('', 0))
+      except:
+        print "Device Already Logged In!"
     self.message = "LOGIN\t" + str(self.user_id) + "\t" + self.passphrase + "\t" + self.my_ip + "\t" + str((self.udp_read_sock.getsockname())[1])
     self.sendMessageToServer()
     message = []
@@ -316,6 +379,11 @@ class TCPClient():
   def logOffFromSystem(self):
     self.message = "LOGOFF\t" + str(self.user_id)
     self.sendMessageToServer()
+    data_lock.acquire()
+    self.logged_in = False
+    self.udp_read_sock.close()
+    self.udp_write_sock.close()
+    data_lock.release()
 
   def queryServer(self, device_id, qcode):
     self.message = "QUERY\t" + str(qcode) + "\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + str(device_id)
