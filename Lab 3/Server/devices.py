@@ -1,7 +1,7 @@
 import sys
 #File: devices.py
 #Author: Kripash Shrestha
-#Project: Lab 2
+#Project: Lab 3
 
 #This file represents the devices that will be connecting and registering with the server.
 #Every device has a :
@@ -16,14 +16,15 @@ import sys
 
 class Device():
   #constructor for the device
-  def __init__(self, device_id, device_passphrase, device_mac, device_ip, device_port):
+  def __init__(self, device_id, device_passphrase, device_mac, device_ip):
     self.id = device_id
     self.passphrase = device_passphrase
     self.mac = device_mac
     self.ip = device_ip
-    self.port = device_port
     self.messages = []
     self.login = False
+    self.sock = None
+    self.udp_port = None
 
   #append a message to the list everytime the client sends a message to the server
   def addMessage(self, message):
@@ -36,7 +37,7 @@ class Device():
     print "Passphrase: ", self.passphrase
     print "Device MAC: ", self.mac
     print "Device IP: ", self.ip
-    print "Device PORT: ", self.port
+    print "Device PORT: ", self.udp_port
     print "Device Login: ", self.login
     for x in self.messages:
       print "Message: " , x
