@@ -33,7 +33,8 @@ the server will Ack back and log off the device every time it can, even if it is
 5. Query Server - The client will query a server for a device ID and the serverw ill respond with the queried device IP and port if it is logged in and registered with the server. Otherwise, the server will respond with the proper ack. 
 
 6. Query Another Client/Device - The client will query another client device by sending some data at this point, which will be the query for  random data. Right now since there are no restrictions for client to client communications, the 
-client device will respond with "Message Received!"
+client device will respond with "Message Received!" The client query is done with a queued list and a separate thread so that it does not disrupt user input and communication with 
+the server on the main thread.
 
 7. Exit - The program will unbind the sockets from the IP and waits for all of the threads to exit before exiting with 0.
 
@@ -42,7 +43,8 @@ Main Thread - Takes in user input to interact and communicate with server.
 All UDP threads will wait for the device to be logged in and requires a mutex lock to move on in code execution.
 readUDP - reads data from the client socket by acquiring a mutex lock. The timeout for socket reading is set to 2 seconds to that the thread does not hold on to the mutex for too long. The thread will release the mutex lock through every
 iteration.
-writeUDP - writes data to a client udp socket by acquiring a mutex lock. The thread will write and send the data and record the activity and released the mutex.
+writeUDP - writes data to a client udp socket by acquiring a mutex lock. The thread will write and send the data, by using a queued list. The thread will pop up the front of the queue 
+and generate the message for the propery client device and record the activity and released the mutex.
 heartBeat - The thread sleeps for 300 seconds (5 minutes) and wakes up to act as a hearbeat, updating the status of the device if it is logged in. The client device needs to be logged in and acquire the mutex before it can send the heart beat 
 out to the device IDs that is knows of.
 
