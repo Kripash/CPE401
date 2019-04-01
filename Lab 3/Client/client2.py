@@ -60,6 +60,8 @@ class TCPClient():
 
     self.udp_read_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     self.udp_write_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    self.udp_data = None
+    self.udp_addr = None
 
     self.write_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -232,13 +234,16 @@ class TCPClient():
         return 0
       while self.logged_in:
         thread_lock.acquire()
+        print "udp read active"
         self.udp_read_sock.settimeout(3)
-        print self.udp_read_sock.getsockname()
-        data, addr = self.udp_read_sock.recvfrom(1024)
-        if data:
-          self.udp_received.append(data, addr)
-          self.recordActivity(data)
-          self.ackUDP(data, addr)
+        try:
+          self.udp_data, self.udp_addr = self.udp_read_sock.recvfrom(1024)
+        except:
+          "No data received"
+        if self.udp_data:
+          self.udp_received.append(self.udp_data, self.udp_addr)
+          self.recordActivity(self.udp_data)
+          self.ackUDP(self.udp_data, self.udp_addr)
         thread_lock.release()
 
   def ackUDP(self, data, addr):
@@ -259,6 +264,7 @@ class TCPClient():
         return 0
       if(len(self.device_query) > 0):
         thread_lock.acquire()
+        print "Udp write active"
         device_id = self.device_query[0]
         self.device_query.pop(0)
         for x in self.list_of_client_addresses:
@@ -273,6 +279,7 @@ class TCPClient():
       time.sleep(300)
       if(self.logged_in):
         thread_lock.acquire()
+        print "Heart beating"
         heart_beat = "This is my Heart Beat!"
         message = "STATUS\t" + "02\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + str(len(heart_beat)) + "\t" + heart_beat
         for x in self.list_of_client_addresses:
@@ -320,7 +327,7 @@ class TCPClient():
   def loginToSystem(self):
     if(self.logged_in == False):
       try:
-        #self.udp_read_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udp_read_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp_read_sock.bind(('', 0))
       except:
         print "Device Already Logged In!"
@@ -336,12 +343,12 @@ class TCPClient():
   #If a query is received, the function receives a message, it makes sure that it is a query and that
   #it is for the right device before sending the data.
   def waitForQuery(self):
-    self.write_sock.settimeout(10)
     try:
       data = self.write_sock.recv(1024)
       self.data_received = True
     except socket.timeout:
       self.data_received = False
+
     if self.data_received:
       self.data = data
       print "Received Query from server: ", self.data
