@@ -63,7 +63,6 @@ class TCPServer():
     self.read_sock.listen(1000)
     while True:
       self.sock, self.addr = self.read_sock.accept()
-      print "ready to accept data"
       try :
         new_client = threading.Thread(target = self.newClient ,args = (self.sock, self.addr))
         new_client.start()
