@@ -89,7 +89,6 @@ class TCPClient():
     print "Your IP is: " +  self.my_ip
     print "Client Sucessfully Initialized!"
 
-
   def setupThread(self):
     try:
       self.read_thread = threading.Thread(target=self.readUDPSocket, args=(None,))
@@ -230,20 +229,21 @@ class TCPClient():
     while True:
       if(self.kill_threads == True):
         return 0
+      data_received = False
       while self.logged_in:
         thread_lock.acquire()
         self.udp_read_sock.settimeout(2)
         try:
           self.udp_data, self.udp_addr = self.udp_read_sock.recvfrom(1024)
+          data_received = True
         except:
-          thread_lock.release()
-          "No data received"
-        if self.udp_data:
-          print "UDP Data: " , self.udp_data
-          self.udp_received.append(self.udp_data, self.udp_addr)
+          data_received = False
+        if data_received == True:
+          print "UDP Data: ", self.udp_data
+          self.udp_received.append((self.udp_data, self.udp_addr))
           self.recordActivity(self.udp_data)
           self.ackUDP(self.udp_data, self.udp_addr)
-          thread_lock.release()
+        thread_lock.release()
 
   def ackUDP(self, data, addr):
     message = (data.split("\t"))
@@ -252,10 +252,6 @@ class TCPClient():
       message = "DATA\t" + "01\t" + str(self.user_id) + "\t" + str(len(data_message)) + "\t" + data_message
       self.recordActivity(message)
       self.udp_read_sock.sendto(message, addr)
-    else:
-      file = open('Error.log', 'a+')
-      file.write("Invalid Query\n")
-      file.close()
 
   def writeUDPSocket(self, null):
     while True:
@@ -263,15 +259,12 @@ class TCPClient():
         return 0
       if(len(self.device_query) > 0):
         thread_lock.acquire()
-        print "Udp write active"
         device_id = self.device_query[0]
         self.device_query.pop(0)
         for x in self.list_of_client_addresses:
-          print x[0], " ", device_id
           if x[0] == device_id:
             message = "QUERY\t" + "01\t" + str(device_id) + "\t" + str(time.time())
             self.udp_read_sock.sendto(message, x[1])
-            print "sent: " , message
             self.recordActivity(message)
         thread_lock.release()
 
