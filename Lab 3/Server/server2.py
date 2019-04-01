@@ -142,8 +142,8 @@ class TCPServer():
 
     data_lock.release()
     print "Number of Registered Devices: ", len(self.devices)
-    for x in self.devices:
-      x.debug()
+    #for x in self.devices:
+    #  x.debug()
     print "\n"
 
   #Loop through the list of devices and if the device already exists, and the IP is different, update it
