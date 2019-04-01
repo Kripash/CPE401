@@ -1,13 +1,13 @@
-#File: server.py
-#Author: Kripash Shrestha
-#Project: Lab 2
-
 import sys
 import socket
 import SocketServer
 from devices import Device
 import time
 import hashlib
+import thread
+import threading
+
+data_lock = threading.Lock()
 
 #grab host name and ip of device
 hostname = socket.gethostname()
@@ -15,136 +15,179 @@ IPAddr = socket.gethostbyname(hostname)
 server_port = int(sys.argv[1])
 
 
-class UDPServer():
+#Function: getClientIP
+#Gets the IP of the client, none of the described methods in the slides worked, and returned localhost/127.0.0.1
+#So I looked at some resources to get the IP. If a socket cannot connect to a random IP, it will return the Ip as local host
+#because then that means, no other IP exists, otherwise it will return an IP registered on the host.
+#Part of this code was retrieved and modified from https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
+#from user Jamieson Becker with the license:
+#MIT/CC2-BY-SA
+def getServerIP():
+  ip_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+  try:
+    ip_sock.connect(("1.1.1.1", 10000))
+    SERVER_IP = ip_sock.getsockname()[0]
+  except:
+    SERVER_IP = "127.0.0.1"
+
+  ip_sock.close()
+  return SERVER_IP
+
+
+class TCPServer():
   #constructor to set up the socket on the server and list of devices
-  def __init__(self, my_ip, udp_port):
-    self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    self.sock.bind((my_ip, udp_port))
+  def __init__(self, my_ip, tcp_port):
+    print my_ip, " ", tcp_port
+    self.read_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    self.read_sock.bind((my_ip, tcp_port))
+
+    self.sock = None
+    self.addr = None
+    
     self.devices = []
-    self.data = "null"
-    self.addr = 0
-    file = open('error.log', 'a+')
+    self.data = []
+
+    self.recent_data = "null"
+
+    file = open('Error.log', 'a+')
     file.close()
     file = open('Activity.log', 'a+')
     file.close()
 
   #main thread of the function, which will listen to incoming datagrams on the socket and parse them.
   def actAsThread(self):
-    while True:
-      print "\n~~~~~~~~~~~~~~~~~~~~"
-      self.data, self.addr = self.sock.recvfrom(1024)
-      print "Received from: ", self.addr
-      print "Received Message: ", self.data
-      self.parse(self.data, self.addr)
-      print "~~~~~~~~~~~~~~~~~~~~"
+    self.readSocket()
 
-  #Parse the message received and then based on the command of the message, call the function to appropriately
-  #deal with each server datagram and then send the proper Ack back.
-  def parse(self, data, addr):
+  #readSocket
+  #The function acts as the main thread, waiting for clients to open up connections with the socket and creating a
+  #new thread and socket to direct them to that client
+  def readSocket(self):
+    self.read_sock.listen(1000)
+    while True:
+      self.sock, self.addr = self.read_sock.accept()
+      try :
+        new_client = threading.Thread(target = self.newClient ,args = (self.sock, self.addr))
+        new_client.start()
+      except Exception, errtxt:
+        print "Could not start client thread for:", self.addr
+
+  #newClient
+  #new client thread that will listen to incoming data per client and then parse the data to do the data handling
+  def newClient(self, sock, addr):  
+    while True:
+      data = sock.recv(1024)
+      if not data:
+        break
+      print "Message Received: " + data
+      self.parse(data, sock, addr)
+    print "Client has closed connection!"
+    sock.close()
+    
+
+  #Parse
+  # Parse the message received and then based on the command of the message, call the function to appropriately
+  # deal with each server datagram and then send the proper Ack back.
+  # The parsing is based on the command message.
+  def parse(self, data, sock, addr):
+    data_lock.acquire()
     self.recordActivity("Receieved: " + data)
     message = []
     code = str(-1)
-    #parse the message and split it based on tabs
     message = (data.split("\t"))
-    #If the command is register and the len of message is 6, go ahead and parse it and send the ack, other wise
-    #record it as an error
     if (message[0] == "REGISTER"):
-      if(len(message) == 6):
-        code = self.registerDevice(message, data)
-        if (code != "-1"):
-          self.ackClient("REGISTER", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr,
-                       message[3], message[4])
+      if(len(message) == 4):
+        code = self.registerDevice(message, data, addr)
+        self.ackClient(sock,"REGISTER", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, message[3])   
       else:
-        self.recordError("Malformed Message!")
-    # If the command is deregister and the len of message is 6, go ahead and parse it and send the ack, other wise
-    # record it as an error
+        self.recordError("Malformed Message: " + data)
+    # If the command is deregister and the len of message is 6, go ahead and parse it and send the ack, other wise record it as an error
     elif (message[0] == "DEREGISTER"):
-      if (len(message) == 6):
-        mac = "NULL"
-        ip = "NULL"
-        code = self.deregisterDevice(message)
+      if (len(message) == 4):
+        mac = None 
+        ip = None
+        code = self.deregisterDevice(message, addr)
         if (code == "30"):
           for x in self.devices:
             if (x.id == message[1]):
               mac = x.mac
               ip = x.ip
-        self.ackClient("DEREGISTER", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, mac,
-                     ip)
+        self.ackClient(sock, "DEREGISTER", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, message[3])
       else:
-        self.recordError("Malformed Message!")
+        self.recordError("Malformed Message: " + data) 
     #If the command is login and the len of message is 5, go ahead and parse it and send the ack, other wise
     #record it as an error
     elif (message[0] == "LOGIN"):
       if (len(message) == 5):
         code = self.loginDevice(message, data)
-        self.ackClient("LOGIN", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr,
-                     message[3], message[4])
+        self.ackClient(sock, "LOGIN", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, message[3])
         if(code == "70"):
-          self.queryDevice(str(message[1]), "0", str(time.time()), addr)
+          time.sleep(1)
+          self.queryDevice(str(message[1]), "01", str(time.time()), sock)
       else:
-        self.recordError("Malformed Message!")
-    # If the command is logoff and the len of message is 2, go ahead and parse it and send the ack, other wise
-    # record it as an error
+        self.recordError("Malformed Message: " + data)
+    # If the command is logoff and the len of message is 2, go ahead and parse it and send the ack, other wise record it as an error
     elif (message[0] == "LOGOFF"):
       if (len(message) == 2):
         code = self.logoffDevice(message, data)
-        self.ackClient("LOGOFF", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, "null",
-                     "null")
+        self.ackClient(sock, "LOGOFF", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, None)
       else:
-        self.recordError("Malformed Message!")
-    # If the command is data and the len of message is 6, go ahead and parse it and send the ack, other wise
-    # record it as an error
+        self.recordError("Malformed Message: " + data)
+    # If the command is data and the len of message is 6, go ahead and parse it and send the ack, other wise record it as an error
     elif (message[0] == "DATA"):
-      if (len(message) == 6):
-        code = self.handleData(message[1], message[2], message[4], message[5], data)
-        self.ackClient("DATA", code, str(message[2]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, "null",
-                     "null")
+      if(len(message) == 6):
+        time.sleep(0.5)
+        code = self.dataReceived(message, data)
+        self.ackClient(sock, "DATA", code, str(message[2]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, None)
       else:
-        self.recordError("Malformed Message!")
-    #The function prints the number of registered devices and then prints out the data for each device from the server.
-    print "Number of Registered Devices: ", len(self.devices)
-    for x in self.devices:
-      x.debug()
+        self.recordError("Malformed Message: " + data)
+    #If the command is QUERY and the length is 4, look for the device ID and respond with the proper ACK
+    elif (message[0] == "QUERY"):
+      if(len(message) == 5):
+        self.queryReceived(message, data, sock)
+      else:
+        self.recordError("Malformed Message: " + data)
 
-  #Function: registerDevice
+    data_lock.release()
+    print "Number of Registered Devices: ", len(self.devices)
+    #for x in self.devices:
+    #  x.debug()
+    print "\n"
+
   #Loop through the list of devices and if the device already exists, and the IP is different, update it
   #and add the message to the device list and return 02. If there is nothing left to update, add the message to
-  #the device list and return 01. If the device conflicts with mac returns 12 and if with IP, return 13. If the device
+  #the device list and return 01. If the device conflicts with mac returns 13 and if with IP, return 12. If the device
   #does not exist, add it to the list and return 00.
-  def registerDevice(self, message, data):
-    for x in self.devices:
+  def registerDevice(self, message, data, addr):
+    for x in self.devices: 
       if (x.id == message[1] and x.mac == message[3]):
-        if (x.ip != message[4] and x.passphrase == message[2]):
-          x.ip = message[4]
+        if (x.ip != addr[0] and x.passphrase == message[2]):
+          x.ip = addr[0]
           x.addMessage(data)
           return "02"
         else:
           x.addMessage(data)
           return "01"
-      elif (x.ip == message[5] and (not (x.id == message[1] and x.mac == message[3]))):
+      elif (x.ip == addr[0] and (not (x.id == message[1] and x.mac == message[3]))):
         return "12"
       elif (x.mac == message[3] and x.id != message[1]):
         return "13"
-      else:
-        return "-1"
 
-    temp = Device(message[1], message[2], message[3], message[4], message[5])
+    temp = Device(message[1], message[2], message[3], addr[0])
     temp.addMessage(data)
     self.devices.append(temp)
-    # self.devices[0].debug()
     return "00"
 
   #Function: deregisterDevice
   #Loop through the list of devices and if it exists and the mac address and ip matches, remove it from the list and
   #return 20, otherwise if the device doesn't match the ip or mac, return 30 and don't remove it. If the device is not
   #registered, return 21.
-  def deregisterDevice(self, message):
+  def deregisterDevice(self, message, addr):
     for x in self.devices:
       if (x.id == message[1]):
-        if (x.ip == message[4] and x.mac == message[3]):
+        if (x.mac == message[3]):
           self.devices.remove(x)
           return "20"
-        elif (x.ip != message[4] or x.mac != message[3]):
+        elif (x.mac != message[3]):
           return "30"
     return "21"
 
@@ -155,6 +198,8 @@ class UDPServer():
     for x in self.devices:
       if (x.id == message[1]):
         if (x.passphrase == message[2]):
+          x.ip = message[3]
+          x.udp_port = message[4]
           x.addMessage(data)
           x.login = True
           return "70"
@@ -162,16 +207,17 @@ class UDPServer():
 
   #Function: queryDevice:
   #Query the client for data after every login.
-  def queryDevice(self, device_id, code, time, addr):
+  def queryDevice(self, device_id, code, time, sock):
     message = ("QUERY\t" + code + "\t" + device_id + "\t" + time)
-    self.sock.sendto(message, addr)
+    sock.send(message)
+    self.recordActivity("Sent: " + message)
 
-  #Function: handleData
+  #Function: dataReceived
   #Once the query response comes back, make sure the device ID exists and matches, and if it does, return 50,
   # otherwise return 51 since there are no other restrictions for this yet.
-  def handleData(self, Dcode, device_id, length, message, data):
+  def dataReceived(self, message, data):
     for x in self.devices:
-      if (x.id == device_id):
+      if(x.id == message[2]):
         x.addMessage(data)
         return "50"
     return "51"
@@ -183,31 +229,74 @@ class UDPServer():
   def logoffDevice(self, message, data):
     for x in self.devices:
       if (x.id == message[1]):
-        if (x.ip == self.addr[0]):
+        if (x.login == True):
           self.recordActivity("Data received at: " + str(time.time()))
           x.addMessage(data)
           x.login = False
           return "80"
+        elif(x.login == False):
+          self.recordActivity("Data received at: " + str(time.time()))
+          x.addMessage(data)
+          x.login = False
+          return "32"
     return "31"
+
+  #queryReceived
+  #The function will parse the query and check to see that the queried device id exists
+  #If the does, it will send the data back with code 01, if the queried device id exists but is not logged in
+  #The function responds with 12, other wise if the queried device id is not registered, the function responds with 11
+  def queryReceived(self, message, data, sock):
+    for x in self.devices:
+      if(x.id == message[2]):
+        x.addMessage(data)
+      if(x.id == message[4]):
+        if(x.login == True):
+          self.sendData("01", message[2], x.ip, x.udp_port, message[4], sock)
+          return "01"
+        elif(x.login == False):
+          self.sendData("12", message[2], x.ip, x.udp_port, message[4], sock)
+          return "12"
+
+    self.sendData("11", message[2], None, None, message[4], sock)
+    return "11"
+      
+  #sendData
+  #The function sends the proper DATA response to the device that queried the device id
+  def sendData(self, code, device_id, device_ip, device_port, queried_id, sock):
+    if(code == "01"):
+      message = "DATA\t" + code + "\t" + device_id + "\t" + str(time.time()) + "\t" + "0\t" + str(queried_id) + "\t" + str(device_ip) + "\t" + str(device_port) 
+      length = len(message)
+      message = "DATA\t" + code + "\t" + device_id + "\t" + str(time.time()) + "\t" +  str(length) + "\t" + str(queried_id) + "\t" + str(device_ip) + "\t" + str(device_port) 
+      self.recordActivity(message)
+      sock.send(message)
+    else:
+      message = "DATA\t" + code + "\t" + device_id + "\t" + str(time.time()) + "\t" + "0\t" + str(queried_id) 
+      length = len(message) 
+      message = "DATA\t" + code + "\t" + device_id + "\t" + str(time.time()) + "\t" + str(length) + "\t" + str(queried_id)
+      self.recordActivity(message)
+      sock.send(message)
+
 
   #Function: ackClient
   #acknowledge the client with the proper resposne and format based on the command and parameters passed in.
   #commands are based on the client's datagrams/messages sent and the ack's that the client is expecting.
   #Since deregister is the only one with a unique ACk based on the ack code, it has a custom one for the mac and ip
   #address values that the device is expecting.
-  def ackClient(self, command, code, device_id, time, hashed_message, addr, mac, ip):
+  def ackClient(self, sock, command, code, device_id, time, hashed_message, addr, mac):
     if (command == "DEREGISTER"):
       if (code == "30"):
-        message = "ACK\t" + code + "\t" + device_id + "\t" + time + "\t" + hashed_message + "\t" + mac + "\t" + ip
+        message = "ACK\t" + code + "\t" + device_id + "\t" + time + "\t" + hashed_message + "\t" + mac
+        sock.send(message)
         self.recordActivity("Sent: " + message)
       else:
         message = "ACK\t" + code + "\t" + device_id + "\t" + time + "\t" + hashed_message
-        self.sock.sendto(message, addr)
+        sock.send(message)
         self.recordActivity("Sent: " + message)
     else:
       message = "ACK\t" + code + "\t" + device_id + "\t" + time + "\t" + hashed_message
-      self.sock.sendto(message, addr)
+      sock.send(message)
       self.recordActivity("Sent: " + message)
+
 
   #Function: recordActivity
   #open the Activity.log file, record the activity and close the file.
@@ -226,8 +315,9 @@ class UDPServer():
 #Create the object and call the main thread function of the object
 def main():
   #Open up the server on all IPs on the device.
-  UDP_Server = UDPServer("0.0.0.0", server_port)
-  UDP_Server.actAsThread()
+  SERVER_IP = getServerIP()
+  TCP_Server = TCPServer(SERVER_IP, server_port)
+  TCP_Server.actAsThread()
 
 
 if __name__ == '__main__':
