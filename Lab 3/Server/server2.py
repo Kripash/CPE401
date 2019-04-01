@@ -62,7 +62,6 @@ class TCPServer():
   def readSocket(self):
     self.read_sock.listen(1000)
     while True:
-      print "\n~~~~~~~~~~~~~~~~~~~~"
       self.sock, self.addr = self.read_sock.accept()
       print "ready to accept data"
       try :
@@ -70,17 +69,6 @@ class TCPServer():
         new_client.start()
       except Exception, errtxt:
         print "Could not start client thread for:", self.addr
-      #thread.start_new_thread(self.newClient, (self.sock, self.addr))
-      #self.recent_data = self.sock.recv(1024)
-      #print "Received Message: ", self.recent_data
-      #data_lock.acquire()
-      #self.data.append(self.recent_data)
-      #print "Received from: ", self.addr
-      #print "Received Message: ", self.recent_data
-      #self.parse(self.data, self.addr)
-      #data_lock.release()
-      #print "~~~~~~~~~~~~~~~~~~~~"
-
 
   def newClient(self, sock, addr):  
     while True:
@@ -89,25 +77,9 @@ class TCPServer():
         break
       print "Message Received: " + data
       self.parse(data, sock, addr)
-      #sock.send(data)
-    print "Closing connection with a client"
+    print "Client has closed connection!"
     sock.close()
     
-
-  #  while True:
-      #print "\n~~~~~~~~~~~~~~~~~~~~"
-  #    if(len(self.data) != 0):
-        #print len(self.data)
-  #      data_lock.acquire()
-  #      write_sock_lock.acquire()
-        #print "write lock acquired"
-  #      self.write_sock.send(self.data[0])
-  #      self.data.pop(0)
-        #print "sent data"
-        #print self.send(self.recent_data)
-  #      write_sock_lock.release()
-  #      data_lock.release()
-        #print "write lock released"
 
   def parse(self, data, sock, addr):
     data_lock.acquire()
@@ -142,6 +114,7 @@ class TCPServer():
         code = self.loginDevice(message, data)
         self.ackClient(sock, "LOGIN", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, message[3])
         if(code == "70"):
+          time.sleep(1)
           self.queryDevice(str(message[1]), "01", str(time.time()), sock)
       else:
         self.recordError("Malformed Message: " + data)
@@ -155,6 +128,7 @@ class TCPServer():
     # If the command is data and the len of message is 6, go ahead and parse it and send the ack, other wise record it as an error
     elif (message[0] == "DATA"):
       if(len(message) == 6):
+        time.sleep(0.5)
         code = self.dataReceived(message, data)
         self.ackClient(sock, "DATA", code, str(message[2]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, None)
       else:
