@@ -252,7 +252,7 @@ class TCPClient():
         if data_received == True:
           #print "UDP Data: ", self.udp_data
           self.udp_received.append((self.udp_data, self.udp_addr))
-          self.recordActivity("Received     " + self.udp_data)
+          self.recordActivity("Received:     " + self.udp_data)
           self.ackUDP(self.udp_data, self.udp_addr)
         thread_lock.release()
 
@@ -261,7 +261,7 @@ class TCPClient():
     data_message = "Message Received!"
     if(message[0] == "QUERY" and message[1] == "01"):
       message = "DATA\t" + "01\t" + str(self.user_id) + "\t" + str(len(data_message)) + "\t" + data_message
-      self.recordActivity("Sent     " + message)
+      self.recordActivity("Sent:     " + message)
       self.udp_read_sock.sendto(message, addr)
     elif(message[0] == "STATUS"):
       message = "ACK\t" + "40\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + hashlib.sha256(data).hexdigest()
@@ -283,7 +283,7 @@ class TCPClient():
           if x[0] == device_id:
             message = "QUERY\t" + "01\t" + str(device_id) + "\t" + str(time.time())
             self.udp_read_sock.sendto(message, x[1])
-            self.recordActivity("Sent     " + message)
+            self.recordActivity("Sent:     " + message)
         thread_lock.release()
 
   def heartBeat(self, null):
@@ -295,7 +295,6 @@ class TCPClient():
         return 0
       if(self.logged_in):
         thread_lock.acquire()
-        print "Heart beat thread"
         heart_beat = "This is my Heart Beat!"
         message = "STATUS\t" + "02\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + str(len(heart_beat)) + "\t" + heart_beat
         for x in self.list_of_client_addresses:
@@ -385,12 +384,12 @@ class TCPClient():
   #since none were given to us and i made up my own. If the query code is 0, the function will randomly create a
   #binary string from 1 - 100 and send it to the server and record the activity and wait for the ack.
   def dataToServer(self, data, message):
-    self.recordActivity("Received     " + data)
+    self.recordActivity("Received:     " + data)
     if(message[1] == "01"):
       data = bin(random.randint(1, 101))[2:]
       length = len(str(data))
       self.message = "DATA\t" + "01\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + str(length) + "\t" + str(data)
-      self.recordActivity("Sent     " + self.message)
+      self.recordActivity("Sent:     " + self.message)
       self.sendMessageToServer()
       print "Please wait for device to return to user menu (10-15 seconds)"
       self.waitForAck()
