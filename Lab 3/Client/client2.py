@@ -165,7 +165,6 @@ class TCPClient():
       file.write("Message hash does not match original message hash!\n")
       file.close()
 
-    data_lock.acquire()
     if message[1] == "70":
       self.logged_in = True
 
@@ -186,7 +185,6 @@ class TCPClient():
       if found == False:
         self.list_of_client_addresses.append(client_addr)
 
-    data_lock.release()
 
   # Function: actAsThread
   # Acts as main thread by asking the user for the passphrase for client and then calls a function
@@ -234,17 +232,18 @@ class TCPClient():
         return 0
       while self.logged_in:
         thread_lock.acquire()
-        print "udp read active"
-        self.udp_read_sock.settimeout(3)
+        self.udp_read_sock.settimeout(2)
         try:
           self.udp_data, self.udp_addr = self.udp_read_sock.recvfrom(1024)
         except:
+          thread_lock.release()
           "No data received"
         if self.udp_data:
+          print "UDP Data: " , self.udp_data
           self.udp_received.append(self.udp_data, self.udp_addr)
           self.recordActivity(self.udp_data)
           self.ackUDP(self.udp_data, self.udp_addr)
-        thread_lock.release()
+          thread_lock.release()
 
   def ackUDP(self, data, addr):
     message = (data.split("\t"))
@@ -268,9 +267,11 @@ class TCPClient():
         device_id = self.device_query[0]
         self.device_query.pop(0)
         for x in self.list_of_client_addresses:
-          if x[1] == device_id:
+          print x[0], " ", device_id
+          if x[0] == device_id:
             message = "QUERY\t" + "01\t" + str(device_id) + "\t" + str(time.time())
-            self.udp_read_sock.sendto(message, x[2])
+            self.udp_read_sock.sendto(message, x[1])
+            print "sent: " , message
             self.recordActivity(message)
         thread_lock.release()
 
@@ -283,7 +284,7 @@ class TCPClient():
         heart_beat = "This is my Heart Beat!"
         message = "STATUS\t" + "02\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + str(len(heart_beat)) + "\t" + heart_beat
         for x in self.list_of_client_addresses:
-          self.udp_read_sock.sendto(message, x[2])
+          self.udp_read_sock.sendto(message, x[1])
         thread_lock.release()
 
 
@@ -343,6 +344,7 @@ class TCPClient():
   #If a query is received, the function receives a message, it makes sure that it is a query and that
   #it is for the right device before sending the data.
   def waitForQuery(self):
+    self.data_received = False
     try:
       data = self.write_sock.recv(1024)
       self.data_received = True
@@ -360,7 +362,7 @@ class TCPClient():
         self.recordActivity("Not a Query")
       elif(message[2] != str(self.user_id)):
         self.recordActivity("Query for wrong device")
-    elif (not self.data_received):
+    elif (self.data_received == False):
       self.data = "No Query received!"
 
   #Function: dataToServer
