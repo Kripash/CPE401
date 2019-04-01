@@ -171,6 +171,7 @@ class TCPClient():
     message = (data.split("\t"))
     if ((not (hashlib.sha256(self.message).hexdigest() == message[4])) and message[0] == "ACK"):
       io_lock.acquire()
+      print "Opening Error Log"
       file = open('Error.log', 'a+')
       file.write("Message hash does not match original message hash: " + data + "\n")
       file.close()
@@ -226,7 +227,7 @@ class TCPClient():
           query_id = raw_input("Input Device ID (that is not yours) you would like to Query to: ")
         self.device_query.append(query_id)
       elif (self.user_selection == 7):
-        print "Exiting Program!"
+        print "Exiting Program and Cleaning Up Threads!"
         self.logged_in = False
         self.kill_threads = True
         self.udp_read_sock.close()
@@ -242,7 +243,10 @@ class TCPClient():
         return 0
       data_received = False
       while self.logged_in:
+        time.sleep(1)
         thread_lock.acquire()
+        if(self.kill_threads == True):
+          return 0
         self.udp_read_sock.settimeout(2)
         try:
           self.udp_data, self.udp_addr = self.udp_read_sock.recvfrom(1024)
@@ -265,23 +269,28 @@ class TCPClient():
       self.udp_read_sock.sendto(message, addr)
     elif(message[0] == "STATUS"):
       message = "ACK\t" + "40\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + hashlib.sha256(data).hexdigest()
-      self.record("Sent:     " + message)
+      self.recordActivity("Sent:     " + message)
       self.udp_read_sock.sendto(message, addr)
     elif(message[0] == "DATA"):
       message = "ACK\t" + "50\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + hashlib.sha256(data).hexdigest()
-      self.record("Sent:     " + message)
+      self.recordActivity("Sent:     " + message)
 
   def writeUDPSocket(self, null):
     while True:
       if(self.kill_threads == True):
         return 0
       if(len(self.device_query) > 0):
+        time.sleep(1)
         thread_lock.acquire()
+        if(self.kill_threads == True):
+          return 0
         device_id = self.device_query[0]
         self.device_query.pop(0)
         for x in self.list_of_client_addresses:
+          #print x 
           if x[0] == device_id:
             message = "QUERY\t" + "01\t" + str(device_id) + "\t" + str(time.time())
+            #print self.udp_read_sock.getsockname()
             self.udp_read_sock.sendto(message, x[1])
             self.recordActivity("Sent:     " + message)
         thread_lock.release()
@@ -290,11 +299,13 @@ class TCPClient():
     while True:
       if(self.kill_threads == True):
         return 0
-      time.sleep(5)
+      time.sleep(300)
       if(self.kill_threads == True):
         return 0
       if(self.logged_in):
         thread_lock.acquire()
+        if(self.kill_threads == True):
+          return 0
         heart_beat = "This is my Heart Beat!"
         message = "STATUS\t" + "02\t" + str(self.user_id) + "\t" + str(time.time()) + "\t" + str(len(heart_beat)) + "\t" + heart_beat
         for x in self.list_of_client_addresses:
