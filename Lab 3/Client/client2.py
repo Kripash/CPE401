@@ -232,12 +232,13 @@ class TCPClient():
         return 0
       while self.logged_in:
         thread_lock.acquire()
+        self.udp_read_sock.settimeout(3)
         print self.udp_read_sock.getsockname()
         data, addr = self.udp_read_sock.recvfrom(1024)
-        print data
-        self.udp_received.append(data, addr)
-        self.recordActivity(data)
-        self.ackUDP(data, addr)
+        if data:
+          self.udp_received.append(data, addr)
+          self.recordActivity(data)
+          self.ackUDP(data, addr)
         thread_lock.release()
 
   def ackUDP(self, data, addr):
