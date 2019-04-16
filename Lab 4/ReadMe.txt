@@ -10,7 +10,7 @@ https://blogs.dropbox.com/developers/2014/05/generate-an-access-token-for-your-o
 
 
 NOTE: dropbox token that I have for my new set up account = 0-oGatugSJAAAAAAAAAACRyxcHGxKpBUlGGDQYTvFmYkb7ILcgk_56PjKUN49Dh1
-Use that token if you would like to use the default account I have set up and do not want to set up one.
+Use that token if you would like to use the default account I have set up and do not want to set up one. Navigate to the files section of the Dropbox account to look at the files being updated.
 
 dropbox credentials:
 username/email = 2wertobanzaiboy@gmail.com 
@@ -80,5 +80,4 @@ the hostname and IP always resolved to localhost/127.0.0.1, and would therefore 
 but it does on the client, since it needs the machine IPs to send with messages. After some research, I figured out that it has to do with the host names 
 registered in /etc/hosts. To solve this, I had used a solution from stackoverflow, https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
 from user Jamieson Becker with the license: MIT/CC2-BY-SA. 
-
 
