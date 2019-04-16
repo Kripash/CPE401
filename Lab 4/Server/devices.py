@@ -1,7 +1,7 @@
 import sys
 #File: devices.py
 #Author: Kripash Shrestha
-#Project: Lab 3
+#Project: Lab 4
 
 #This file represents the devices that will be connecting and registering with the server.
 #Every device has a :
