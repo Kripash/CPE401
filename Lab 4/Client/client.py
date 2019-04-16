@@ -272,7 +272,10 @@ class TCPClient():
         thread_lock.acquire()
         if(self.kill_threads == True):
           return 0
-        self.udp_read_sock.settimeout(2)
+        try:
+          self.udp_read_sock.settimeout(2)
+        except:
+          data_received = False
         try:
           self.udp_data, self.udp_addr = self.udp_read_sock.recvfrom(1024)
           data_received = True
