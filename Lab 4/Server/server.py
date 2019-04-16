@@ -1,3 +1,7 @@
+#File: server.py
+#Author: Kripash Shrestha
+#Project: Lab 4
+
 import sys
 import socket
 import os 
@@ -11,9 +15,9 @@ import dropbox
 
 data_lock = threading.Lock()
 
-#grab host name and ip of device
-hostname = socket.gethostname()
-IPAddr = socket.gethostbyname(hostname)
+#server port to bind for the server
+#hostname = socket.gethostname()
+#IPAddr = socket.gethostbyname(hostname)
 server_port = int(sys.argv[1])
 
 
@@ -56,7 +60,8 @@ class TCPServer():
     file = open('Activity.log', 'a+')
     file.close()
 
-    self.dropbox_key = "0-oGatugSJAAAAAAAAAACRyxcHGxKpBUlGGDQYTvFmYkb7ILcgk_56PjKUN49Dh1"
+    #self.dropbox_key = "0-oGatugSJAAAAAAAAAACRyxcHGxKpBUlGGDQYTvFmYkb7ILcgk_56PjKUN49Dh1"
+    self.dropbox_key = raw_input("Please Input DropBox Account Token (to access cloud account): ")
     self.dbx = dropbox.Dropbox(self.dropbox_key)
     self.dbx.users_get_current_account()
     self.analyze_thread = None
@@ -69,6 +74,7 @@ class TCPServer():
     
 
   #main thread of the function, which will listen to incoming datagrams on the socket and parse them.
+  #sets up the analyze_thread so that the server can query the cloud for the files in the dropbox cloud and anaylze the temperature data in there
   def actAsThread(self):
     try:
       self.analyze_thread = threading.Thread(target=self.analyzeCloudData, args=(None,))
@@ -77,7 +83,13 @@ class TCPServer():
       print "Could not start client data analysis thread thread!"
     self.readSocket()
 
-
+  #Function: analyzeCloudData 
+  #The thread wakes up every 30 seconds
+  #the server retrieves data from all files besides the one it created on the cloud 
+  #the server then checks to make sure that the file that exists has been recently changed and the device that changed it is logged in and exists in the database of the server 
+  #if the requirements are met, the server records the temperature data that the client IoT put up there
+  #after all of the files are read and processed, the client will record the total devices logged in and recorded in the cloud and the average temperature of all the devices 
+  #that loggined in and recorded to the cloud 
   def analyzeCloudData(self, null):
     while(True):
       time.sleep(30)
@@ -85,7 +97,7 @@ class TCPServer():
         if(entry.name != "server.txt"):
           device_id = (entry.name.rsplit('.', 1)[0])[-1:]
           for x in self.devices:
-            if x.id == device_id:
+            if x.id == device_id and x.login == True:
               md, res = self.dbx.files_download("/cpe_lab_4/" + entry.name)
               data = res.content
               self.total_temp = self.total_temp + float(data) 
