@@ -78,6 +78,7 @@ class TCPServer():
   def actAsThread(self):
     try:
       self.analyze_thread = threading.Thread(target=self.analyzeCloudData, args=(None,))
+      self.analyze_thread.daemon = True
       self.analyze_thread.start()
     except Exception, errtxt:
       print "Could not start client data analysis thread thread!"
@@ -121,7 +122,6 @@ class TCPServer():
       self.sock, self.addr = self.read_sock.accept()
       try :
         new_client = threading.Thread(target = self.newClient ,args = (self.sock, self.addr))
-        new_client.daemond = True
         new_client.start()
       except Exception, errtxt:
         print "Could not start client thread for:", self.addr
