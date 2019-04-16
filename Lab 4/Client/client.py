@@ -1,6 +1,6 @@
 #File: client.py
 #Author: Kripash Shrestha
-#Project: Lab 3
+#Project: Lab 4
 import sys
 import socket
 import uuid
@@ -351,6 +351,12 @@ class TCPClient():
         thread_lock.release()
 
 
+  #Function:pushToCloud 
+  #The thread wakes up every 30 seconds 
+  #the thread will then check to see if the device is logged in to the server 
+  #If the device is logged into the server, the device will continue to authenticate itself to the dropbox cloud 
+  #the device will then get the CPU temperature of the device and record it to the cloud under the folder /cpe_lab_4/device(device_id).txt
+  #The client IoT device will record the activity into the 
   def pushToCloud(self, null):
     while True:
       if(self.kill_threads == True):
