@@ -121,6 +121,7 @@ class TCPServer():
       self.sock, self.addr = self.read_sock.accept()
       try :
         new_client = threading.Thread(target = self.newClient ,args = (self.sock, self.addr))
+        new_client.daemond = True
         new_client.start()
       except Exception, errtxt:
         print "Could not start client thread for:", self.addr
