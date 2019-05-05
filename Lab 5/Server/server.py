@@ -13,6 +13,11 @@ import thread
 import threading
 import dropbox
 
+import binascii
+from Crypto.PublicKey import RSA
+from Crypto.Util import asn1
+from base64 import b64decode
+
 data_lock = threading.Lock()
 
 #server port to bind for the server
@@ -65,13 +70,30 @@ class TCPServer():
     self.dbx = dropbox.Dropbox(self.dropbox_key)
     self.dbx.users_get_current_account()
     self.analyze_thread = None
-    self.dbx.files_upload("Server Set up", "/cpe_lab_4/server.txt", dropbox.files.WriteMode.overwrite)
+    self.dbx.files_upload("Server Set up", "/cpe_lab_5/server.txt", dropbox.files.WriteMode.overwrite)
     self.total_temp = 0
     self.total_login = 0
+
+
+    self.key = RSA.generate(2048)
+    self.privKeyBin = self.key.exportKey('DER')
+    self.pubKeyBin = self.key.publickey().exportKey('DER')
+    self.privKey = RSA.importKey(self.privKeyBin)
+    self.pubKey = RSA.importKey(self.pubKeyBin)
 
     print "Server set up!"
 
     
+
+  def binaryToHex(self, bin_val):
+    return binascii.hexlify(bin_val)
+
+
+  def hexToBinary(self, hex_val):
+    return binascii.unhexlify(hex_val)
+
+
+
 
   #main thread of the function, which will listen to incoming datagrams on the socket and parse them.
   #sets up the analyze_thread so that the server can query the cloud for the files in the dropbox cloud and anaylze the temperature data in there
@@ -94,12 +116,12 @@ class TCPServer():
   def analyzeCloudData(self, null):
     while(True):
       time.sleep(30)
-      for entry in self.dbx.files_list_folder('/cpe_lab_4').entries:
+      for entry in self.dbx.files_list_folder('/cpe_lab_5').entries:
         if(entry.name != "server.txt"):
           device_id = (entry.name.rsplit('.', 1)[0])[-1:]
           for x in self.devices:
             if x.id == device_id and x.login == True:
-              md, res = self.dbx.files_download("/cpe_lab_4/" + entry.name)
+              md, res = self.dbx.files_download("/cpe_lab_5/" + entry.name)
               data = res.content
               self.total_temp = self.total_temp + float(data) 
               self.total_login = self.total_login + 1
@@ -150,7 +172,7 @@ class TCPServer():
     code = str(-1)
     message = (data.split("\t"))
     if (message[0] == "REGISTER"):
-      if(len(message) == 4):
+      if(len(message) == 5):
         code = self.registerDevice(message, data, addr)
         self.ackClient(sock,"REGISTER", code, str(message[1]), str(time.time()), hashlib.sha256(data).hexdigest(), addr, message[3])   
       else:
@@ -229,6 +251,8 @@ class TCPServer():
 
     temp = Device(message[1], message[2], message[3], addr[0])
     temp.addMessage(data)
+    temp.pub_key = message[4]
+    print temp.pub_key
     self.devices.append(temp)
     return "00"
 
@@ -351,6 +375,10 @@ class TCPServer():
       message = "ACK\t" + code + "\t" + device_id + "\t" + time + "\t" + hashed_message + "\t" + self.dropbox_key
       sock.send(message)
       self.recordActivity("Sent: " + message)
+    elif(command == "REGISTER" and code == "00"):
+      message = "ACK\t" + code + "\t" + device_id + "\t" + time + "\t" + hashed_message + "\t" + str(self.binaryToHex(self.pubKeyBin)) 
+      sock.send(message)
+      self.recordActivity("Sent: " + message)      
     else:
       message = "ACK\t" + code + "\t" + device_id + "\t" + time + "\t" + hashed_message
       sock.send(message)

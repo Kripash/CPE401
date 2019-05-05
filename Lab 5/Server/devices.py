@@ -25,6 +25,7 @@ class Device():
     self.login = False
     self.sock = None
     self.udp_port = None
+    self.pub_key = None
 
   #append a message to the list everytime the client sends a message to the server
   def addMessage(self, message):

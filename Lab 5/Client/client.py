@@ -16,6 +16,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 
+import binascii
 from Crypto.PublicKey import RSA
 from Crypto.Util import asn1
 from base64 import b64decode
@@ -85,12 +86,7 @@ class TCPClient():
     self.privKey = RSA.importKey(self.privKeyBin)
     self.pubKey = RSA.importKey(self.pubKeyBin)
 
-    msg = "attack at dawn"
-    emsg = pubKeyObj.encrypt(msg, 'x')[0]
-    print emsg
-    dmsg = privKeyObj.decrypt(emsg)
-    print dmsg
-    assert (msg == dmsg)
+    self.server_pub_key = None
 
     try:
       self.write_sock.connect((server_ip, tcp_port))
@@ -155,7 +151,7 @@ class TCPClient():
       self.cloud_thread.start()
     except Exception, errtxt:
       print "Could not start cloud thread!"
-      
+
 
   # Function: sendMessageToServer
   # Send a message to server and wait for response, if there is no response within 3 timeouts, then report the
@@ -224,6 +220,10 @@ class TCPClient():
       file.close()
       io_lock.release()
 
+    if message[1] == "00":
+      self.server_pub_key = message[4]
+      self.recordActivity("Received server public key: " +  message[5])
+
     if message[1] == "70":
       self.logged_in = True
       self.dropbox_key = message[5]
@@ -275,8 +275,10 @@ class TCPClient():
           query_id = raw_input("Input Device ID (that is not yours) you would like to Query to: ")
         self.device_query.append(query_id)
       elif(self.user_selection == 7):
-        self.send_email()
-      elif (self.user_selection == 8):
+        self.sendEmail()
+      elif(self.user_selection == 8):
+        self.readFriendCloudFile()
+      elif (self.user_selection == 9):
         print "Exiting Program and Cleaning Up Threads!"
         print "Waiting for Heart Beat Thread to awake and close (5 minute cycle)"
         self.logged_in = False
@@ -288,18 +290,35 @@ class TCPClient():
       else:
         print "Invalid Choice!"
 
-  def send_email(self):
+
+  def binaryToHex(self, bin_val):
+    return binascii.hexlify(bin_val)
+
+
+  def hexToBinary(self, hex_val):
+    return binascii.unhexlify(hex_val)
+
+  def sendEmail(self):
     if(self.email is None and self.email_password is None):
-      self.email = raw_input("Please input email account(refreshed upon connection closed): ")
-      self.email_password = raw_input("Please input email password(refreshed upon connection closed): ")
+      self.email = raw_input("Please input email account(refreshed upon program close): ")
+      self.email_password = raw_input("Please input email password(refreshed upon program close): ")
     email_rec = raw_input("Please input email recipient: ")
+
+    #msg = "test"
+    #emsg = self.pubKey.encrypt(msg, 'x')[0]
+    #dmsg = self.privKey.decrypt(emsg)
 
     msg = MIMEMultipart()
     msg['From'] = str(self.email)
     msg['To'] = str(email_rec)
     msg['Subject'] = "Device " + str(self.user_id) + " cloud log file"
-    body = "Test"
-    msg.attach(MIMEText(body, 'plain'))
+    header = str(self.user_id) + "\n" + str(self.binaryToHex(self.pubKeyBin)) + "\n" 
+    body = "/cpe_lab_5/device" + str(self.user_id) + ".txt" + " " + str(self.dropbox_key)
+    #print body
+    body_encrypted = self.privKey.encrypt(body, 'x')[0]
+    #print header + body_encrypted
+    #print self.privKey.decrypt(body_encrypted)
+    msg.attach(MIMEText(header + body_encrypted, 'plain'))
     s = smtplib.SMTP('smtp.gmail.com', 587)
     s.starttls()
     try:
@@ -308,7 +327,22 @@ class TCPClient():
       print "Could not sign into email, check security settings on account!"
       sys.exit(0)
     s.sendmail(self.email, email_rec, str(msg))
+    self.recordActivity("Sent Email to: " + str(email_rec) + "with message: " + str(body_encrypted))
     s.quit()
+
+
+
+  def accessServer(self, device_id):
+    
+
+  def readFriendCloudFile(self):
+    email_file = raw_input("Please input email file: ")
+    f = open(email_file, "r")
+    sender_id = f.readline()
+    sender_pub_key = f.readline()
+    sender_encrypted = f.readline()
+
+  
 
 
 
@@ -376,7 +410,7 @@ class TCPClient():
         device_id = self.device_query[0]
         self.device_query.pop(0)
         for x in self.list_of_client_addresses:
-          #print x 
+          #print x
           if x[0] == device_id:
             message = "QUERY\t" + "01\t" + str(device_id) + "\t" + str(time.time())
             #print self.udp_read_sock.getsockname()
@@ -408,12 +442,12 @@ class TCPClient():
         thread_lock.release()
 
 
-  #Function:pushToCloud 
-  #The thread wakes up every 30 seconds 
-  #the thread will then check to see if the device is logged in to the server 
-  #If the device is logged into the server, the device will continue to authenticate itself to the dropbox cloud 
-  #the device will then get the CPU temperature of the device and record it to the cloud under the folder /cpe_lab_4/device(device_id).txt
-  #The client IoT device will record the activity into the 
+  #Function:pushToCloud
+  #The thread wakes up every 30 seconds
+  #the thread will then check to see if the device is logged in to the server
+  #If the device is logged into the server, the device will continue to authenticate itself to the dropbox cloud
+  #the device will then get the CPU temperature of the device and record it to the cloud under the folder /cpe_lab_5/device(device_id).txt
+  #The client IoT device will record the activity into the
   def pushToCloud(self, null):
     while True:
       if(self.kill_threads == True):
@@ -428,9 +462,9 @@ class TCPClient():
         temp_file = open("/sys/class/thermal/thermal_zone0/temp")
         temp = float(temp_file.read())
         temp_c = temp/1000
-        self.dbx.files_upload(str(temp_c), "/cpe_lab_4/device" + str(self.user_id) + ".txt", dropbox.files.WriteMode.overwrite)
-        self.recordActivity("Wrote to Cloud at file /cpe_lab_4/device" + str(self.user_id) + ".txt with temperature " + str(temp_c))
-                    
+        self.dbx.files_upload(str(temp_c), "/cpe_lab_5/device" + str(self.user_id) + ".txt", dropbox.files.WriteMode.overwrite)
+        self.recordActivity("Wrote to Cloud at file /cpe_lab_5/device" + str(self.user_id) + ".txt with temperature " + str(temp_c))
+
 
 
   # Function: userSelection
@@ -445,25 +479,26 @@ class TCPClient():
     print "5. Query Server"
     print "6. Query Another Client/Device"
     print "7. Send Email With Token"
-    print "8. Exit"
+    print "8. Read Friend Cloud File From Email"
+    print "9. Exit"
 
     # select an action 1-9 for client action
-    self.user_selection = int(raw_input("Please Select an Action (1 - 8): "))
-    while ((self.user_selection <= 0) or (self.user_selection >= 9)):
+    self.user_selection = int(raw_input("Please Select an Action (1 - 9): "))
+    while ((self.user_selection <= 0) or (self.user_selection >= 10)):
       print "Error: Menu Option Invalid! "
-      self.user_selection = int(raw_input("Please Select an Action (1 - 8): "))
+      self.user_selection = int(raw_input("Please Select an Action (1 - 9): "))
     print " "
 
   #Function: registerDevice
   #Creates the string message to register the device and calls sendMessageToServer to send the message to the server.
   def registerDevice(self):
-    self.message = "REGISTER\t" + str(self.user_id) + "\t" + self.passphrase + "\t" + str(self.mac) + "\n"
+    self.message = "REGISTER\t" + str(self.user_id) + "\t" + self.passphrase + "\t" + str(self.mac) + "\t" + str(self.binaryToHex(self.pubKeyBin))
     self.sendMessageToServer()
 
   #Function: deRegisterDevice
   #Creates the string message to deregister the device and calls sendMessageToServer to send the message to the server.
   def deregisterDevice(self):
-    self.message = "DEREGISTER\t" + str(self.user_id) + "\t" + self.passphrase + "\t" + str(self.mac) + "\n"
+    self.message = "DEREGISTER\t" + str(self.user_id) + "\t" + self.passphrase + "\t" + str(self.mac)
     self.sendMessageToServer()
 
   #Function: loginToSystem
