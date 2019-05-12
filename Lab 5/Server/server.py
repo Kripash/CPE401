@@ -1,6 +1,6 @@
 #File: server.py
 #Author: Kripash Shrestha
-#Project: Lab 4
+#Project: Lab 5
 
 import sys
 import socket
@@ -12,11 +12,24 @@ import hashlib
 import thread
 import threading
 import dropbox
+import copy
 
+import base64
+import uuid
 import binascii
 from Crypto.PublicKey import RSA
 from Crypto.Util import asn1
+from Crypto.Cipher import AES 
+import Crypto.Hash.MD5 as MD5
 from base64 import b64decode
+
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+import ast
+import base64
 
 data_lock = threading.Lock()
 
@@ -73,27 +86,203 @@ class TCPServer():
     self.dbx.files_upload("Server Set up", "/cpe_lab_5/server.txt", dropbox.files.WriteMode.overwrite)
     self.total_temp = 0
     self.total_login = 0
+    self.dbx_temp = 0
+    self.dbx_login = 0
+    self.dbx_time_string = ""
 
+    self.user_id = None
+    self.username = None
+    self.password = None
+    self.email = None
+    self.email_password = None
+    self.email_rec = None
+    self.key = None
+    self.pub_key = None
+    self.privKeyBin = None
+    self.pubKeyBin = None
+    self.privKey = None
+    self.pubKey = None
+    self.iv = None
+    self.raw_password = None
 
-    self.key = RSA.generate(2048)
-    self.privKeyBin = self.key.exportKey('DER')
-    self.pubKeyBin = self.key.publickey().exportKey('DER')
-    self.privKey = RSA.importKey(self.privKeyBin)
-    self.pubKey = RSA.importKey(self.pubKeyBin)
+    self.send_email_thread = None
+    self.read_email_cloud = None
+
+    #set up token access files and encrypt it
+    try:
+      fh = open("credentials.txt", 'r+')
+      print("Credentials file found!")
+      self.username = raw_input("Enter username: ")
+      self.password = raw_input("Enter password: ")
+      self.raw_password = copy.copy(self.password)
+      length = 16 - (len(self.password) % 16)
+      self.password += chr(length)*length
+      #obj = AES.new(str(self.password), AES.MODE_CBC, "cpelab0123456789")
+      fh.close()
+    except:
+      print("No credentials file found!")
+      self.key = RSA.generate(2048)
+      self.privKeyBin = self.key.exportKey('DER')
+      self.pubKeyBin = self.key.publickey().exportKey('DER')
+      self.privKey = RSA.importKey(self.privKeyBin)
+      self.pubKey = RSA.importKey(self.pubKeyBin)
+      self.username = raw_input("Create a username: ")
+      self.password = raw_input("Create a password: ")
+      self.raw_password = copy.copy(self.password)
+      self.email = raw_input("Please input email account: ")
+      self.email_password = raw_input("Please input email password: ")
+      self.email_rec = raw_input("Please input email recipient: ")
+      f = open("credentials.txt", "w+")
+      length = 16 - (len(self.password) % 16)
+      self.password += chr(length)*length
+      obj = AES.new(str(self.password), AES.MODE_CFB, "cpelab0123456789")
+      f.write(obj.encrypt((self.username)))
+      f.write("\n")
+      f.write(obj.encrypt(self.password))
+      f.write("\n")
+      f.write(obj.encrypt((self.email)))
+      f.write("\n")
+      f.write(obj.encrypt((self.email_password)))
+      f.write("\n")    
+      f.write(obj.encrypt((self.email_rec)))
+      f.write("\n")
+      f.close()
+      f = open("rsa.pub", "w+")
+      f.write(self.key.publickey().exportKey())
+      f.close()
+      f = open("rsa.priv", "w+")
+      f.write(self.key.exportKey())
+      f.close()
+
+    #verifiy the access token file from the user credentials 
+    obj = AES.new(str(self.password), AES.MODE_CFB, "cpelab0123456789")
+    counter = 0
+    with open('credentials.txt', 'rU') as f:
+      for line in f:
+        counter = counter +1
+        data = None 
+        if(counter != 6 or counter != 7):
+          data = str(obj.decrypt((line.rstrip(os.linesep))))
+        if(counter == 2):
+          if(self.password == data):
+            print "Passwords Match"
+          else:
+            print "Passwords do not match! Exiting Server!"
+            sys.exit(0)
+        if(counter == 1 and self.user_id is None):
+          self.user_id = data
+          if(self.username != self.user_id):
+            print "Invalid username or password"
+            sys.exit(0)
+        if(counter == 3 and self.email is None):
+          self.email = data
+        if(counter == 4 and self.email_password is None):
+          self.email_password = data
+        if(counter == 5 and self.email_rec is None):
+          self.email_rec = data
+
+    #set up public key as a file
+    with open('rsa.pub', 'rU') as f:
+      self.pub_key = RSA.importKey(f.read())
+
+    #set up private key as a file
+    with open('rsa.priv', 'rU') as f:
+      self.key = RSA.importKey(f.read())    
+
+    #set up the keys for the program
+    if(self.privKeyBin is None):
+      self.privKeyBin = self.key.exportKey('DER')
+      self.pubKeyBin = self.key.publickey().exportKey('DER')
+      self.privKey = RSA.importKey(self.privKeyBin)
+      self.pubKey = RSA.importKey(self.pubKeyBin)
 
     print "Server set up!"
 
     
-
   def binaryToHex(self, bin_val):
     return binascii.hexlify(bin_val)
-
 
   def hexToBinary(self, hex_val):
     return binascii.unhexlify(hex_val)
 
+  def padString(self, data):
+    length = 16 - (len(data) % 16)
+    data += chr(length)*length
+    print data
+    return str(data)
 
+  #send the email every 30 seconds to the email to be sent to 
+  def sendEmail(self, data):
+    while(True):
+      time.sleep(30)
+      msg = MIMEMultipart()
+      msg['From'] = str(self.email)
+      msg['To'] = str(self.email_rec)
+      msg['Subject'] = "Device " + str(self.user_id) + " cloud log file"
+      body = str(self.user_id) + "\n" + str(self.key.publickey().exportKey()) + "\n" + "/cpe_lab_5/" + "\n"
+      encrypt = str(self.dropbox_key)
+      #print body
+      #body_encrypted = self.privKey.encrypt(encrypt, 'x')[0]
+      #msg.attach(MIMEText(body + body_encrypted, 'plain', 'utf-8'))
+      base = (base64.b64encode(body + encrypt))
+      
+      s = smtplib.SMTP('smtp.gmail.com', 587)
+      s.starttls()
+      try:
+        s.login(self.email, self.email_password)
+      except Exception, errtxt:
+        print "Could not sign into email, check security settings on account!"
+      s.sendmail(self.email, self.email_rec, str(base))
+      self.recordActivity("Sent Email to: " + str(self.email_rec) + "with message: " + str(base))
+      s.quit()
 
+  #read email file as base64encode and parse it to extract keys and such from the destinated directory of emails every 30 seconds
+  def readEmail(self, data):
+    while(True):
+      time.sleep(30)
+      cwd = os.getcwd()
+      email_dir = (os.listdir(cwd + '/emails'))
+      if len(email_dir) == 0:
+        print "No Emails Found"
+      else:
+        for x in email_dir:
+          f = file(cwd + '/emails/' + x)
+          content = f.read()
+          with open(cwd + '/emails/' + x, 'r') as f:
+            fr = base64.b64decode(content)
+            #print fr
+            index = fr.find('lab_5')
+            encrypted_string = fr[index + 7:]
+            #print encrypted_string
+            #if(fr[index - 1] == "-"):
+            #  encrypted_string = 
+
+            name = fr.find("-----BEGIN PUBLIC KEY-----")
+            user_id = fr[0:name]
+            key_i = fr.find("-----END PUBLIC KEY-----")
+            key = fr[name:key_i+25]
+            dir_index = fr.find("/cpe_lab_5/")
+            dir_name = fr[dir_index:dir_index+10]
+            pub_key = RSA.importKey(key)
+            #print len(encrypted_string)
+            #decrypt = pub_key.decrypt(encrypted_string)
+            #print decrypt
+            dbx = dropbox.Dropbox(self.dropbox_key)
+            dbx.users_get_current_account()
+            for entry in dbx.files_list_folder(dir_name).entries:
+              if(entry.name != "server.txt"):
+                device_id = (entry.name.rsplit('.', 1)[0])[-1:]
+                md, res = dbx.files_download(dir_name + "/" + entry.name)
+                data = res.content
+                self.dbx_temp = self.dbx_temp + float(data) 
+                self.dbx_login = self.dbx_login + 1
+                self.dbx_time_string = str(time.time())
+                self.recordActivity(str(self.dbx_login) + " devices in " + user_id + "server")
+                self.recordActivity(str(self.dbx_temp) + " total temp in " + user_id + "server")
+            if(self.dbx_login == 0):
+              self.recordActivity("No Devices Logged in to " + user_id + " at time " + self.dbx_time_string)      
+            self.dbx_temp = 0
+            self.dbx_login = 0
 
   #main thread of the function, which will listen to incoming datagrams on the socket and parse them.
   #sets up the analyze_thread so that the server can query the cloud for the files in the dropbox cloud and anaylze the temperature data in there
@@ -103,7 +292,22 @@ class TCPServer():
       self.analyze_thread.daemon = True
       self.analyze_thread.start()
     except Exception, errtxt:
-      print "Could not start client data analysis thread thread!"
+      print "Could not start client data analysis thread!"
+
+    try:
+      self.send_email_thread = threading.Thread(target=self.sendEmail, args=(None,))
+      self.send_email_thread.daemon = True
+      self.send_email_thread.start()
+    except Exception, errtxt:
+      print "Could not start email thread!"
+
+    try:
+      self.read_email_cloud = threading.Thread(target=self.readEmail, args=(None,))
+      self.read_email_cloud.daemon = True
+      self.read_email_cloud.start()
+    except Exception, errtxt:
+      print "Could not start email and cloud read thread!"
+      
     self.readSocket()
 
   #Function: analyzeCloudData 

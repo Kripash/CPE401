@@ -1,6 +1,6 @@
 #File: client.py
 #Author: Kripash Shrestha
-#Project: Lab 4
+#Project: Lab 5
 import sys
 import socket
 import uuid
@@ -173,6 +173,13 @@ class TCPClient():
           file.close()
           io_lock.release()
 
+  def binaryToHex(self, bin_val):
+    return binascii.hexlify(bin_val)
+
+
+  def hexToBinary(self, hex_val):
+    return binascii.unhexlify(hex_val)
+
 
   # Function: sendMessage
   # record the activity of sending a message and then wait for the Ack.
@@ -274,11 +281,7 @@ class TCPClient():
         while (query_id == self.user_id):
           query_id = raw_input("Input Device ID (that is not yours) you would like to Query to: ")
         self.device_query.append(query_id)
-      elif(self.user_selection == 7):
-        self.sendEmail()
-      elif(self.user_selection == 8):
-        self.readFriendCloudFile()
-      elif (self.user_selection == 9):
+      elif (self.user_selection == 7):
         print "Exiting Program and Cleaning Up Threads!"
         print "Waiting for Heart Beat Thread to awake and close (5 minute cycle)"
         self.logged_in = False
@@ -289,14 +292,6 @@ class TCPClient():
         sys.exit(0)
       else:
         print "Invalid Choice!"
-
-
-  def binaryToHex(self, bin_val):
-    return binascii.hexlify(bin_val)
-
-
-  def hexToBinary(self, hex_val):
-    return binascii.unhexlify(hex_val)
 
   def sendEmail(self):
     if(self.email is None and self.email_password is None):
@@ -331,22 +326,8 @@ class TCPClient():
     s.quit()
 
 
-
-  def accessServer(self, device_id):
-    
-
-  def readFriendCloudFile(self):
-    email_file = raw_input("Please input email file: ")
-    f = open(email_file, "r")
-    sender_id = f.readline()
-    sender_pub_key = f.readline()
-    sender_encrypted = f.readline()
-
-  
-
-
-
-    #readUDPSocket
+ 
+  #readUDPSocket
   #waits for the device to be logged in the server, after the device is logged in the function will sleep for 1 second
   #then it will wait for the mutex lock to be available before reading to a socket for 2 seconds, if there is data
   #to be read, the function records it and acks it. The function releases the mutex at the end.
@@ -478,15 +459,15 @@ class TCPClient():
     print "4. Logoff Device from System"
     print "5. Query Server"
     print "6. Query Another Client/Device"
-    print "7. Send Email With Token"
-    print "8. Read Friend Cloud File From Email"
-    print "9. Exit"
+    #print "7. Send Email With Token"
+    #print "8. Read Friend Cloud File From Email"
+    print "7. Exit"
 
-    # select an action 1-9 for client action
-    self.user_selection = int(raw_input("Please Select an Action (1 - 9): "))
-    while ((self.user_selection <= 0) or (self.user_selection >= 10)):
+    # select an action 1-7 for client action
+    self.user_selection = int(raw_input("Please Select an Action (1 - 7): "))
+    while ((self.user_selection <= 0) or (self.user_selection >= 8)):
       print "Error: Menu Option Invalid! "
-      self.user_selection = int(raw_input("Please Select an Action (1 - 9): "))
+      self.user_selection = int(raw_input("Please Select an Action (1 - 7): "))
     print " "
 
   #Function: registerDevice
