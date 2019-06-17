@@ -1,6 +1,6 @@
 Author: Kripash Shrestha
 File: Readme.txt 
-Project: CPE 401 Lab 4
+Project: CPE 401 Lab 5
 
 The follwing link contains the install instructions for the DropBox Python API that is used to access the DropBox cloud:
 https://www.dropbox.com/developers/documentation/python#install
@@ -13,9 +13,8 @@ NOTE: dropbox token that I have for my new set up account = 0-oGatugSJAAAAAAAAAA
 Use that token if you would like to use the default account I have set up and do not want to set up one. Navigate to the files section of the Dropbox account to look at the files being updated.
 
 dropbox credentials:
-username/email = 2wertobanzaiboy@gmail.com 
-password       = cpelab4password
-
+username/email = 
+password       = 
 The user when starting the server is directed to enter a dropbox token to connect the account, the token given above may be used. 
 
 Files:
